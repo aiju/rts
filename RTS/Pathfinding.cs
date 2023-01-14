@@ -202,7 +202,7 @@ namespace RTS
             for (int i = 1; i < Faces.Count - 1; i++)
             {
                 var (vln, vrn) = getOrientedEdge(Faces[i], Faces[i + 1]);
-                if (vln.Id == vl.Id)
+                if (vln.Same(vl))
                     addRight(vrn.Pos);
                 else
                     addLeft(vln.Pos);
@@ -392,7 +392,7 @@ namespace RTS
             for (int i = 1; i < Faces.Count - 1; i++)
             {
                 var (vln, vrn) = getOrientedEdge(Faces[i], Faces[i + 1]);
-                if (vln.Id == vl.Id)
+                if (vln.Same(vl))
                     addRight(vrn.Pos, PointType.Right);
                 else
                     addLeft(vln.Pos);
@@ -515,10 +515,10 @@ namespace RTS
                     {
                         if (pathfinding.cdt.IsConstrained(e))
                             continue;
-                        if(current.Id != start.Id)
+                        if(!current.Same(start))
                         {
                             var (_, f) = cameFrom[current];
-                            if (e.Id != f.Id && pathfinding.CDT.TriangleWidth(current, e, f) < 2 * Radius)
+                            if (!e.Same(f) && pathfinding.CDT.TriangleWidth(current, e, f) < 2 * Radius)
                                 continue;
                         }
                         var g = calculategScore(gScore[current], current, neighbor);
@@ -534,6 +534,7 @@ namespace RTS
                 Faces = null;
                 return false;
             }
+            /*
             private (Mesh.Vertex, Mesh.Vertex, Mesh.Vertex, Mesh.Vertex) quad(Mesh.Face f0, Mesh.Face f1)
             {
                 var (v1, v2, v3) = f0.Vertices;
@@ -541,7 +542,7 @@ namespace RTS
                 else if (!f1.Contains(v3)) (v1, v3) = (v3, v1);
                 if (!Geometry.IsClockwise(v1.Pos, v2.Pos, v3.Pos))
                     (v2, v3) = (v3, v2);
-                /* TODO maybe dont need v4 */
+                // TODO maybe dont need v4
                 var (v4, v5, v6) = f1.Vertices;
                 if (v5.Id != v2.Id && v5.Id != v3.Id) (v4, v5) = (v5, v4);
                 else if (v6.Id != v2.Id && v6.Id != v3.Id) (v4, v6) = (v6, v4);
@@ -565,7 +566,6 @@ namespace RTS
                 left[Faces.Count] = Goal;
                 right[Faces.Count] = Goal;
             }
-            /*
             enum PointType { End, Left, Right };
             private (Vector2, Vector2) nudgeVertices(Vector2 apex, PointType apexType, Vector2 point, PointType pointType)
             {
@@ -590,7 +590,6 @@ namespace RTS
                     return (apex + n * r1, point - n * r2);
                 }
             }
-            */
             private void funnel(Vector2[] lefts, Vector2[] rights)
             {
                 Vector2 apex = Start;
@@ -663,6 +662,7 @@ namespace RTS
                 }
                 Route = newRoute;
             }
+            */
             private void update()
             {
                 if (astar())

@@ -160,116 +160,95 @@ namespace RTS
     internal class Mesh
     {
         public const float Epsilon = Geometry.Epsilon;
-        List<Vector2> vertices;
-        List<(int, int)> edges;
-        List<object> edgeAux;
-        List<(int, int, int)> faces;
-        private int addVertex(Vector2 p)
-        {
-            int n = vertices.Count;
-            vertices.Add(p);
-            return n;
-        }
-        private int addEdge(int v1, int v2)
-        {
-            Debug.Assert(v1 != v2);
-            if (TryGetEdge(GetVertex(v1), GetVertex(v2), out Edge edge))
-                return edge.Id;
-            int n = edges.Count;
-            edges.Add((v1, v2));
-            edgeAux.Add(null);
-            return n;
-        }
-        private void updateEdge(int e, int a, int b)
-        {
-            Debug.Assert(a != b);
-            edges[e] = (a, b);
-        }
-        private void addFace(int v1, int v2, int v3)
-        {
-            Debug.Assert(v1 != v2 && v1 != v3 && v2 != v3);
-            addEdge(v1, v2);
-            addEdge(v2, v3);
-            addEdge(v1, v3);
-            faces.Add((v1, v2, v3));
-        }
-        private void updateFace(int f, int a, int b, int c)
-        {
-            faces[f] = (a, b, c);
-        }
+        List<Vertex> vertices;
+        Dictionary<(Vertex, Vertex), Edge> edges;
+        List<Face> faces;
         public Mesh(Vector2 min, Vector2 max)
         {
-            vertices = new List<Vector2>();
-            edges = new List<(int, int)>();
-            edgeAux = new List<object>();
-            faces = new List<(int, int, int)>();
-            addVertex(min);
-            addVertex(new Vector2(max.X, min.Y));
-            addVertex(max);
-            addVertex(new Vector2(min.X, max.Y));
-            addFace(0, 1, 2);
-            addFace(0, 2, 3);
+            vertices = new List<Vertex>();
+            edges = new Dictionary<(Vertex, Vertex), Edge>();
+            faces = new List<Face>();
+            var a = NewVertex(min);
+            var b = NewVertex(new Vector2(max.X, min.Y));
+            var c = NewVertex(max);
+            var d = NewVertex(new Vector2(min.X, max.Y));
+            NewFace(a, c, b);
+            NewFace(a, d, c);
         }
-        public int EdgeCount { get { return edges.Count; } }
-        public Vertex GetVertex(int Id) { return new Mesh.Vertex(this, Id); }
-        public Edge GetEdge(int Id) { return new Mesh.Edge(this, Id); }
-        public Face GetFace(int Id) { return new Mesh.Face(this, Id); }
-        public IEnumerable<Vertex> Vertices() { return vertices.Select((i, j) => GetVertex(j)); }
-        public IEnumerable<Edge> Edges() { return edges.Select((i, j) => GetEdge(j)); }
-        public IEnumerable<Face> Faces() { return faces.Select((i, j) => GetFace(j)); }
+        public Vertex NewVertex(Vector2 pos)
+        {
+            Vertex v = new Vertex(this, pos);
+            vertices.Add(v);
+            return v;
+        }
+        public Edge NewEdge(Vertex a, Vertex b)
+        {
+            Edge e;
+            if (TryGetEdge(a, b, out e))
+                return e;
+            e = new Edge(this, a, b);
+            edges.Add((a, b), e);
+            return e;
+        }
+        public Face NewFace(Vertex a, Vertex b, Vertex c)
+        {
+            NewEdge(a, b);
+            NewEdge(a, c);
+            NewEdge(b, c);
+            Face f = new Face(this, a, b, c);
+            faces.Add(f);
+            return f;
+        }
+        public void RemoveVertex(Vertex v)
+        {
+            vertices.Remove(v);
+        }
+        public void RemoveEdge(Edge e)
+        {
+            edges.Remove(e.Vertices);
+            edges.Remove((e.Vertex2, e.Vertex1));
+        }
+        public void RemoveFace(Face f)
+        {
+            faces.Remove(f);
+        }
+        public IEnumerable<Vertex> Vertices() { return vertices; }
+        public IEnumerable<Edge> Edges() { return edges.Values; }
+        public IEnumerable<Face> Faces() { return faces; }
         internal class Vertex
         {
             Mesh mesh;
-            public int Id { get; }
-            public Vector2 Pos { get { return mesh.vertices[Id];  } }
-            public Vertex(Mesh mesh, int id)
+            public Vector2 Pos { get; }
+            public Vertex(Mesh mesh, Vector2 pos)
             {
                 this.mesh = mesh;
-                Id = id;
+                this.Pos = pos;
             }
             internal IEnumerable<Edge> Edges()
             {
                 return mesh.Edges().Where(e => e.Contains(this));
             }
-            public override bool Equals(object obj)
+            public bool Same(Vertex w)
             {
-                Vertex v = obj as Vertex;
-                return v != null && v.Id == Id;
+                return this == w;
             }
-            public override int GetHashCode()
+            public override string ToString()
             {
-                return Id;
+                return String.Format("{{{0}, {1}}}", Pos.X, Pos.Y);
             }
         }
         internal class Edge
         {
             Mesh mesh;
-            public int Id { get; }
-            public Edge(Mesh mesh, int id)
+            public Edge(Mesh mesh, Vertex a, Vertex b)
             {
                 this.mesh = mesh;
-                Id = id;
+                Vertices = (a, b);
             }
-            public Vertex Vertex1 { get { return mesh.GetVertex(mesh.edges[Id].Item1); } }
-            public Vertex Vertex2 { get { return mesh.GetVertex(mesh.edges[Id].Item2); } }
-            public (Vertex, Vertex) Vertices
-            {
-                get
-                {
-                    var (a, b) = mesh.edges[Id];
-                    return (mesh.GetVertex(a), mesh.GetVertex(b));
-                }
-            }
-            public object Aux {
-                get
-                {
-                    return mesh.edgeAux[Id];
-                }
-                set
-                {
-                    mesh.edgeAux[Id] = value;
-                }
-            }
+            public Vertex Vertex1 { get { return Vertices.Item1; } }
+            public Vertex Vertex2 { get { return Vertices.Item2; } }
+            public (Vertex, Vertex) Vertices { get; }
+            public object Aux { get; set; }
             public float DistanceToPoint(Vector2 p)
             {
                 return Geometry.DistanceSegmentToPoint(Vertex1.Pos, Vertex2.Pos, p);
@@ -280,57 +259,8 @@ namespace RTS
             }
             public bool Contains(Vertex v)
             {
-                var (a, b) = mesh.edges[Id];
-                return v.Id == a || v.Id == b;
-            }
-            private void quad(out int a, out int b, out int c, out int d, out int f0, out int f1)
-            {
-                (a, b) = mesh.edges[Id];
-                var faces = AdjacentFaces().ToArray();
-                Debug.Assert(faces.Count() == 2);
-                int v2, v3, w2, w3;
-                (c, v2, v3) = mesh.faces[faces[0].Id];
-                (d, w2, w3) = mesh.faces[faces[1].Id];
-                if (v2 != a && v2 != b) c = v2;
-                else if (v3 != a && v3 != b) c = v3;
-                if (w2 != a && w2 != b) d = w2;
-                else if (w3 != a && w3 != b) d = w3;
-                Debug.Assert(c != a && c != b && d != a && d != b && c != d);
-                f0 = faces[0].Id;
-                f1 = faces[1].Id;
-            }
-            public Vertex Split(Vector2 point, out Edge splitEdge, out Edge[] fp)
-            {
-                quad(out int a, out int b, out int c, out int d, out int f0, out int f1);
-                fp = AdjacentFaces().SelectMany((f,i) => f.Edges).Where(e => e.Id != Id).ToArray();
-                Debug.Assert(fp.Count() == 4);
-                int p = mesh.addVertex(point);
-                mesh.updateEdge(Id, a, p);
-                splitEdge = mesh.GetEdge(mesh.addEdge(p, b));
-                mesh.addEdge(p, c);
-                mesh.addEdge(p, d);
-                mesh.updateFace(f0, a, p, c);
-                mesh.updateFace(f1, a, p, d);
-                mesh.addFace(b, p, c);
-                mesh.addFace(b, p, d);
-                return mesh.GetVertex(p);
-            }
-            public void DelaunayFlip()
-            {
-                quad(out int a, out int b, out int c, out int d, out int f0, out int f1);
-                mesh.updateEdge(Id, c, d);
-                mesh.updateFace(f0, a, c, d);
-                mesh.updateFace(f1, b, c, d);
-            }
-            public bool IsDelaunay()
-            {
-                /* TODO degeneracy */
-                quad(out int av, out int bv, out int cv, out int dv, out int _, out int _);
-                var A = mesh.vertices[av];
-                var B = mesh.vertices[bv];
-                var C = mesh.vertices[cv];
-                var D = mesh.vertices[dv];
-                return Geometry.IsDelaunay(A, B, C, D);
+                var (a, b) = Vertices;
+                return a.Same(v) || b.Same(v);
             }
             public Vector2 Project(Vector2 point)
             {
@@ -338,96 +268,72 @@ namespace RTS
             }
             public IEnumerable<Face> AdjacentFaces()
             {
-                var (a, b) = mesh.edges[Id];
-                var fs = new List<Face>();
-                for(int i = 0; i < mesh.faces.Count; i++)
+                /* FIXME */
+                var (a, b) = Vertices;
+                var fs = new List<Face>(2);
+                foreach(Face f in mesh.Faces())
                 {
-                    var (x, y, z) = mesh.faces[i];
-                    if ((a == x || a == y || a == z) && (b == x || b == y || b == z))
-                        fs.Add(mesh.GetFace(i));
+                    var (x, y, z) = f.Vertices;
+                    if ((a.Same(x) || a.Same(y) || a.Same(z)) && (b.Same(x) || b.Same(y) || b.Same(z)))
+                        fs.Add(f);
                 }
                 return fs;
             }
-            public override bool Equals(object obj)
+            public bool Same(Edge e)
             {
-                Edge e = obj as Edge;
-                return e != null && e.Id == Id;
-            }
-            public override int GetHashCode()
-            {
-                return Id;
+                return this == e;
             }
         }
         internal class Face
         {
             Mesh mesh;
-            public int Id { get; }
-            public Face(Mesh mesh, int id)
+            public Face(Mesh mesh, Vertex a, Vertex b, Vertex c)
             {
                 this.mesh = mesh;
-                Id = id;
+                Vertices = (a, b, c);
             }
-            public override bool Equals(object obj)
+            public bool Same(Face f)
             {
-                Face f = obj as Face;
-                return f != null && f.Id == Id;
+                return this == f;
             }
-            public override int GetHashCode()
+            public override string ToString()
             {
-                return Id;
+                return String.Format("{0} {1} {2}", Vertex1, Vertex2, Vertex3);
             }
-            public Vertex Vertex1 { get { return mesh.GetVertex(mesh.faces[Id].Item1); } }
-            public Vertex Vertex2 { get { return mesh.GetVertex(mesh.faces[Id].Item2); } }
-            public Vertex Vertex3 { get { return mesh.GetVertex(mesh.faces[Id].Item3); } }
-            public (Vertex, Vertex, Vertex) Vertices
-            {
-                get
-                {
-                    var (a, b, c) = mesh.faces[Id];
-                    return (mesh.GetVertex(a), mesh.GetVertex(b), mesh.GetVertex(c));
-                }
-            }
+            public Vertex Vertex1 { get { return Vertices.Item1; } }
+            public Vertex Vertex2 { get { return Vertices.Item2; } }
+            public Vertex Vertex3 { get { return Vertices.Item3;  } }
+            public (Vertex, Vertex, Vertex) Vertices { get; }
             public Mesh.Edge[] Edges
             {
                 get
                 {
+                    /* FIXME */
                     return mesh.Edges().Where(Contains).ToArray();
                 }
             }
-            public Vertex Split(Vector2 point, out Edge[] fp)
-            {
-                fp = Edges;
-                var (a, b, c) = mesh.faces[Id];
-                int p = mesh.addVertex(point);
-                mesh.addEdge(a, p);
-                mesh.addEdge(b, p);
-                mesh.addEdge(c, p);
-                mesh.updateFace(Id, a, b, p);
-                mesh.addFace(b, c, p);
-                mesh.addFace(c, a, p);
-                return mesh.GetVertex(p);
-            }
             public bool Contains(Edge e)
             {
-                var (a, b, c) = mesh.faces[Id];
-                var (p, q) = mesh.edges[e.Id];
+                /* FIXME */
+                var (a, b, c) = Vertices;
+                var (p, q) = e.Vertices;
                 return (p == a || p == b || p == c) && (q == a || q == b || q == c);
             }
             public bool Contains(Vertex v)
             {
-                var (a, b, c) = mesh.faces[Id];
-                return a == v.Id || b == v.Id || c == v.Id;
+                var (a, b, c) = Vertices;
+                return a.Same(v) || b.Same(v) || c.Same(v);
             }
             public bool Contains(Vector2 point)
             {
                 return Geometry.FaceContainsPoint(Vertex1.Pos, Vertex2.Pos, Vertex3.Pos, point);
             }
-
             public IEnumerable<(Face, Edge)> Neighbours()
             {
+                /* FIXME */
                 foreach(Edge e in Edges)
                     foreach (Face f in e.AdjacentFaces())
-                        if (f.Id != Id)
+                        if (!Same(f))
                             yield return (f, e);
             }
             public Vector2 Centroid()
@@ -439,80 +345,63 @@ namespace RTS
             {
                 var f = e.AdjacentFaces().ToArray();
                 Debug.Assert(f.Count() == 2);
-                if (f[0].Id == Id) return f[1];
+                if (Same(f[0])) return f[1];
                 return f[0];
             }
         }
         internal class Updater
         {
-            HashSet<int> deleteEdges;
-            HashSet<int> deleteFaces;
-            HashSet<(int, int)> addEdges;
-            HashSet<(int, int, int)> addFaces;
-            Dictionary<(int, int), object> setAux;
+            HashSet<Edge> deleteEdges;
+            HashSet<Face> deleteFaces;
+            Dictionary<(Vertex, Vertex), object> addEdges;
+            HashSet<(Vertex, Vertex, Vertex)> addFaces;
             Mesh mesh;
             public Updater(Mesh mesh)
             {
                 this.mesh = mesh;
-                deleteEdges = new HashSet<int>();
-                deleteFaces = new HashSet<int>();
-                addEdges = new HashSet<(int, int)>();
-                addFaces = new HashSet<(int, int, int)>();
-                setAux = new Dictionary<(int, int), object>();
+                deleteEdges = new HashSet<Edge>();
+                deleteFaces = new HashSet<Face>();
+                addEdges = new Dictionary<(Vertex, Vertex), object>();
+                addFaces = new HashSet<(Vertex, Vertex, Vertex)>();
             }
             public void DeleteEdge(Edge e)
             {
-                deleteEdges.Add(e.Id);
+                deleteEdges.Add(e);
                 foreach (Face f in e.AdjacentFaces())
-                    deleteFaces.Add(f.Id);
+                    deleteFaces.Add(f);
             }
             public void AddEdge(Vertex a, Vertex b, object aux)
             {
-                if (a.Id > b.Id) (b, a) = (a, b);
-                addEdges.Add((a.Id, b.Id));
-                setAux.Add((a.Id, b.Id), aux);
+                if (addEdges.ContainsKey((b, a)))
+                    addEdges[(b, a)] = aux;
+                else
+                    addEdges.Add((a, b), aux);
+            }
+            private void weakAddEdge(Vertex a, Vertex b)
+            {
+                if (!addEdges.ContainsKey((a, b)) && !addEdges.ContainsKey((b, a)))
+                    addEdges.Add((a, b), null);
             }
             public void AddFace(Vertex a, Vertex b, Vertex c)
             {
-                if (a.Id > b.Id) (b, a) = (a, b);
-                if (b.Id > c.Id) (c, b) = (b, c);
-                if (a.Id > b.Id) (b, a) = (a, b);
-                addEdges.Add((a.Id, b.Id));
-                addEdges.Add((b.Id, c.Id));
-                addEdges.Add((a.Id, c.Id));
-                addFaces.Add((a.Id, b.Id, c.Id));
+                weakAddEdge(a, b);
+                weakAddEdge(b, c);
+                weakAddEdge(a, c);
+                addFaces.Add((a, b, c));
             }
             public void Apply()
             {
-                if(deleteEdges.Count > 0)
+                foreach (Face f in deleteFaces)
+                    mesh.RemoveFace(f);
+                foreach (Edge e in deleteEdges)
+                    mesh.RemoveEdge(e);
+                foreach(var (vertices, aux) in addEdges)
                 {
-                    int j = 0;
-                    for (int i = 0; i < mesh.edges.Count; i++)
-                        if (!deleteEdges.Contains(i))
-                        {
-                            mesh.edges[j] = mesh.edges[i];
-                            mesh.edgeAux[j] = mesh.edgeAux[i];
-                            j++;
-                        }
-                    mesh.edges.RemoveRange(j, mesh.edges.Count - j);
-                    mesh.edgeAux.RemoveRange(j, mesh.edgeAux.Count - j);
-                }
-                if (deleteFaces.Count > 0)
-                {
-                    int j = 0;
-                    for (int i = 0; i < mesh.faces.Count; i++)
-                        if (!deleteFaces.Contains(i))
-                            mesh.faces[j++] = mesh.faces[i];
-                    mesh.faces.RemoveRange(j, mesh.faces.Count - j);
-                }
-                foreach (var (a, b) in addEdges)
-                {
-                    int e = mesh.addEdge(a, b);
-                    if (setAux.TryGetValue((a, b), out object aux))
-                        mesh.edgeAux[e] = aux;
+                    var e = mesh.NewEdge(vertices.Item1, vertices.Item2);
+                    e.Aux = aux;
                 }
                 foreach (var (a, b, c) in addFaces)
-                    mesh.addFace(a, b, c);
+                    mesh.NewFace(a, b, c);
             }
         }
         public delegate void LocatedVertex(Vertex v);
@@ -547,8 +436,7 @@ namespace RTS
                 if (Geometry.DistanceSegmentToPoint(v1.Pos, v2.Pos, v.Pos) < Epsilon)
                     crossings.Add((Geometry.DistanceAlongSegment(v1.Pos, v2.Pos, v.Pos), v, null, v.Pos));
             foreach (Edge e in Edges())
-                if (!(v1.Id == e.Vertex1.Id && v2.Id == e.Vertex2.Id ||
-                     v2.Id == e.Vertex1.Id && v1.Id == e.Vertex1.Id) &&
+                if (!(e.Contains(v1) && e.Contains(v2)) &&
                     Geometry.IntersectSegments(v1.Pos, v2.Pos, e.Vertex1.Pos, e.Vertex2.Pos, out Vector2 point))
                 {
                     if (Vector2.Distance(e.Vertex1.Pos, point) >= Epsilon && Vector2.Distance(e.Vertex2.Pos, point) >= Epsilon)
@@ -563,17 +451,7 @@ namespace RTS
         }
         public bool TryGetEdge(Vertex v1, Vertex v2, out Edge edge)
         {
-            foreach(Edge e in Edges())
-            {
-                var (w1, w2) = e.Vertices;
-                if(v1.Id == w1.Id && v2.Id == w2.Id || v1.Id == w2.Id && v2.Id == w1.Id)
-                {
-                    edge = e;
-                    return true;
-                }
-            }
-            edge = null;
-            return false;
+            return edges.TryGetValue((v1, v2), out edge) || edges.TryGetValue((v2, v1), out edge);
         }
     }
     internal class CDT
@@ -587,19 +465,83 @@ namespace RTS
                     e.Aux = new List<int>() { 0 };
         }
         public Mesh Mesh { get { return mesh; } }
+        private void edgeQuad(Edge e, out Vertex a, out Vertex b, out Vertex c, out Vertex d, out Face f0, out Face f1)
+        {
+            (a, b) = e.Vertices;
+            var faces = e.AdjacentFaces().ToArray();
+            Debug.Assert(faces.Count() == 2);
+            Vertex v2, v3, w2, w3;
+            (c, v2, v3) = faces[0].Vertices;
+            (d, w2, w3) = faces[1].Vertices;
+            if (!v2.Same(a) && !v2.Same(b)) c = v2;
+            else if (!v3.Same(a) && !v3.Same(b)) c = v3;
+            if (!w2.Same(a) && !w2.Same(b)) d = w2;
+            else if (!w3.Same(a) && !w3.Same(b)) d = w3;
+            Debug.Assert(c != a && c != b && d != a && d != b && c != d);
+            f0 = faces[0];
+            f1 = faces[1];
+        }
+        public void delaunayFlip(Edge e)
+        {
+            edgeQuad(e, out var a, out var b, out var c, out var d, out var f0, out var f1);
+            mesh.RemoveEdge(e);
+            mesh.NewEdge(c, d);
+            mesh.RemoveFace(f0);
+            mesh.RemoveFace(f1);
+            mesh.NewFace(a, c, d);
+            mesh.NewFace(b, c, d);
+        }
+        private bool isDelaunay(Edge e)
+        {
+            edgeQuad(e, out var A, out var B, out var C, out var D, out _, out _);
+            return Geometry.IsDelaunay(A.Pos, B.Pos, C.Pos, D.Pos);
+        }
+        private Vertex faceSplit(Face f, Vector2 point, out Edge[] fp)
+        {
+            fp = f.Edges;
+            var (a, b, c) = f.Vertices;
+            Vertex p = mesh.NewVertex(point);
+            mesh.NewEdge(a, p);
+            mesh.NewEdge(b, p);
+            mesh.NewEdge(c, p);
+            mesh.RemoveFace(f);
+            mesh.NewFace(a, b, p);
+            mesh.NewFace(b, c, p);
+            mesh.NewFace(c, a, p);
+            return p;
+        }
+        private Vertex edgeSplit(Edge e, Vector2 point, out Edge[] fp)
+        {
+            edgeQuad(e, out var a, out var b, out var c, out var d, out var f0, out var f1);
+            fp = e.AdjacentFaces().SelectMany((f, i) => f.Edges).Where(ee => !e.Same(ee)).ToArray();
+            Debug.Assert(fp.Count() == 4);
+            Vertex p = mesh.NewVertex(point);
+            var orig = e.Aux;
+            mesh.RemoveEdge(e);
+            var e1 = mesh.NewEdge(a, p);
+            var e2 = mesh.NewEdge(b, p);
+            e1.Aux = orig;
+            e2.Aux = orig;
+            mesh.NewEdge(c, p);
+            mesh.NewEdge(d, p);
+            mesh.RemoveFace(f0);
+            mesh.RemoveFace(f1);
+            mesh.NewFace(a, p, c);
+            mesh.NewFace(a, p, d);
+            mesh.NewFace(b, p, c);
+            mesh.NewFace(b, p, d);
+            return p;
+        }
         Mesh.Vertex insertPointInEdge(Mesh.Edge edge, Vector2 point)
         {
             point = edge.Project(point);
-            var orig = (List<int>)edge.Aux;
-            var vertex = edge.Split(point, out Mesh.Edge splitEdge, out Mesh.Edge[] Fp);
-            if (orig != null)
-                splitEdge.Aux = new List<int>(orig);
+            var vertex = edgeSplit(edge, point, out Mesh.Edge[] Fp);
             flipEdges(point, Fp);
             return vertex;
         }
         Mesh.Vertex insertPointInFace(Mesh.Face face, Vector2 point)
         {
-            var vertex = face.Split(point, out Mesh.Edge[] Fp);
+            var vertex = faceSplit(face, point, out Mesh.Edge[] Fp);
             flipEdges(point, Fp);
             return vertex;
         }
@@ -608,14 +550,14 @@ namespace RTS
             var stack = new Stack<Mesh.Edge>(Fp);
             while (stack.TryPop(out Mesh.Edge edge))
             {
-                if (!IsConstrained(edge) && !edge.IsDelaunay())
+                if (!IsConstrained(edge) && !isDelaunay(edge))
                 {
                     var faces = edge.AdjacentFaces();
                     Mesh.Face face = faces.Where(f => !f.Contains(point)).First();
                     foreach (Mesh.Edge e in face.Edges)
-                        if (e.Id != edge.Id)
+                        if (!e.Same(edge))
                             stack.Push(e);
-                    edge.DelaunayFlip();
+                    delaunayFlip(edge);
                 }
             }
         }
@@ -674,9 +616,9 @@ namespace RTS
                 var (p1, p2) = e.Vertices;
                 if (!Geometry.IsClockwise(a.Pos, b.Pos, p1.Pos))
                     (p1, p2) = (p2, p1);
-                if (upper.Count == 0 || upper[upper.Count - 1].Id != p1.Id)
+                if (upper.Count == 0 || !upper[upper.Count - 1].Same(p1))
                     upper.Add(p1);
-                if (lower.Count == 0 || lower[lower.Count - 1].Id != p2.Id)
+                if (lower.Count == 0 || !lower[lower.Count - 1].Same(p2))
                     lower.Add(p2);
             }
             triangulatePolygon(updater, upper, 0, upper.Count, a, b);
@@ -722,7 +664,7 @@ namespace RTS
             else if (IsConstrained(e))
                 return dd;
             Face TT = T.FaceOppositeTo(e);
-            var l = TT.Edges.Where(ee => ee.Id != e.Id).ToArray();
+            var l = TT.Edges.Where(ee => !ee.Same(e)).ToArray();
             Debug.Assert(l.Count() == 2);
             d = searchWidth(C, TT, l[0], d);
             return searchWidth(C, TT, l[1], d);
