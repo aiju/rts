@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading;
 
 namespace RTS
 {
@@ -349,7 +350,7 @@ namespace RTS
         Pathfinding.Path path;
         bool lastDown;
         KeyboardState lastState;
-        public const float radius = 0.025f;
+        public const float radius = 0.01f;
         public PathfindingManipulator()
         {
             pathfinding = new Pathfinding(new Vector2(0, 0), new Vector2(1, 1));
@@ -373,7 +374,7 @@ namespace RTS
                         new Vector2(x0,y0) },1);
                 }
             */
-
+            /*
             var centres = new List<(Vector2, float)>();
             Random random = new Random();
             for(int i = 0; i < 50; i++)
@@ -397,6 +398,99 @@ namespace RTS
                     polygon.Add(new Vector2(v.X + r * MathF.Cos(2 * MathF.PI * i / n), v.Y + r * MathF.Sin(2 * MathF.PI * i / n)));
                 cdt.InsertConstraint(polygon, 1);
             }
+            */
+
+            float wall = 0.02f;
+            float radius = 0.03f;
+            float spacing = 2 * wall + radius * 2;
+            int n = (int)((1.0f - 2 * spacing) / (0.75f * spacing));
+            float offset = (1 - 0.75f * spacing * n) / 2;
+            Vector2 pt(float r, float x, float y, int side)
+            {
+                return new Vector2(x + r * MathF.Cos(2 * MathF.PI * side / 6), y + r * MathF.Sin(2 * MathF.PI * side / 6));
+            }
+            void addhex(float x, float y, int side)
+            {
+                cdt.InsertConstraint(new List<Vector2>() { pt(radius, x, y, side), pt(radius + wall, x, y, side), pt(radius + wall, x, y, side + 1), pt(radius, x, y, side + 1), pt(radius, x, y, side) }, 0);
+            }
+            IEnumerable<((int, int), int)> neighbours((int,int) cell)
+            {
+                var (i, j) = cell;
+
+                if((i % 2) != 0)
+                {
+                    yield return ((i + 1, j + 1), 0);
+                    yield return ((i, j + 1), 1);
+                    yield return ((i - 1, j + 1), 2);
+                    yield return ((i - 1, j), 3);
+                    yield return ((i, j - 1), 4);
+                    yield return ((i + 1, j), 5);
+                }
+                else
+                {
+                    yield return ((i + 1, j), 0);
+                    yield return ((i, j + 1), 1);
+                    yield return ((i - 1, j), 2);
+                    yield return ((i - 1, j - 1), 3);
+                    yield return ((i, j - 1), 4);
+                    yield return ((i + 1, j - 1), 5);
+                }
+            }
+            Random random = new Random();
+            var walls = new List<(int, int, int)>();
+            var sets = new Dictionary<(int,int),int>();
+            for (int i = 0; i < n; i++)
+                for (int j = 0; j < n; j++)
+                {
+                    sets[(i, j)] = j * n + i;
+                    foreach (var (_, w) in neighbours((i, j)).Where(e => (uint)e.Item1.Item1 < n && (uint)e.Item1.Item2 < n))
+                        walls.Add((i, j, w));
+                }
+            bool[,,] nowall;
+            nowall = new bool[n, n, 6];
+            while (walls.Count > 0)
+            {
+                var nn = random.Next() % walls.Count;
+                var (i, j, w) = walls[nn];
+                walls.RemoveAt(nn);
+                var ((k, l), _) = neighbours((i, j)).ElementAt(w);
+                var m1 = Math.Min(sets[(i, j)], sets[(k, l)]);
+                var m2 = Math.Max(sets[(i, j)], sets[(k, l)]);
+                if (m1 != m2)
+                {
+                    for (int x = 0; x < n; x++)
+                        for (int y = 0; y < n; y++)
+                            if (sets[(x, y)] == m1)
+                                sets[(x, y)] = m2;
+                    nowall[i, j, w] = true;
+                    nowall[k, l, (w + 3) % 6] = true;
+                }
+            }
+
+            /*
+            var visited = new HashSet<(int, int)>();
+            var stack = new Stack<(int, int)>();
+            stack.Push((2, 2));
+
+
+            while(stack.TryPop(out var cell))
+            {
+                visited.Add(cell);
+                var unvisited = neighbours(cell).Where(e => (uint)e.Item1.Item1 < n && (uint)e.Item1.Item2 < n && !visited.Contains(e.Item1)).ToList();
+                if (unvisited.Count > 0)
+                {
+                    stack.Push(cell);
+                    var (picked, index) = unvisited[random.Next() % unvisited.Count];
+                    nowall[cell.Item1, cell.Item2, index] = true;
+                    nowall[picked.Item1, picked.Item2, (index + 3) % 6] = true;
+                    stack.Push(picked);
+                }
+            }*/
+            for(int i = 0; i < n; i++)
+                for(int j = 0; j < n; j++)
+                    for (int k = 0; k < 6; k++)
+                        if (!nowall[i,j,k])
+                            addhex(offset + 0.75f * spacing * i, offset + spacing * ((i%2) + 2 * j) * MathF.Sqrt(3) / 4, k);
 
             mesh = cdt.Mesh;
             path = pathfinding.NewPath(new Vector2(0.16f, 0.56f), new Vector2(0.95f, 0.95f), radius);
@@ -430,13 +524,13 @@ namespace RTS
             var dotPurple = new Polygon(device, 6, 2, 0, Color.Purple, true);
             foreach (Mesh.Face f in mesh.Faces())
             {
-                var fc = path.Faces != null && path.Faces.Contains(f) ? Color.LightGreen : Color.Green;
+                var fc = false && path.Faces != null && path.Faces.Contains(f) ? Color.LightGreen : Color.Green;
                 new Polygon(device, new Vector2[] { toScreen(f.Vertex1.Pos), toScreen(f.Vertex3.Pos), toScreen(f.Vertex2.Pos) }, fc, true).DrawAt(device, new Vector2(0, 0));
             }
             foreach (Mesh.Vertex v in mesh.Vertices())
             {
                 //dotRed.DrawAt(device, toScreen(v.Pos) / 32);
-                Shape.RegularPolygon(device, 32, radius * Scale).Translate(toScreen(v.Pos)).Draw(device);
+                //Shape.RegularPolygon(device, 32, radius * Scale).Translate(toScreen(v.Pos)).Draw(device);
             }
             foreach (Mesh.Edge v in mesh.Edges())
             {
