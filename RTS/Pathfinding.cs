@@ -466,13 +466,13 @@ namespace RTS
                 pathfinding.CDT.Mesh.LocatePoint(Start,
                     vertex =>
                     {
-                        f = vertex.Edges().Where(e => !pathfinding.CDT.IsConstrained(e)).First().AdjacentFaces().First();
+                        f = vertex.Edges().Where(e => !pathfinding.CDT.IsConstrained(e)).First().EnumerateFaces().First();
                     },
                     edge =>
                     {
                         if (pathfinding.CDT.IsConstrained(edge))
                             throw new ArgumentOutOfRangeException();
-                        f = edge.AdjacentFaces().First();
+                        f = edge.EnumerateFaces().First();
                     },
                     face =>
                         f = face);
@@ -481,7 +481,7 @@ namespace RTS
             }
             private float heuristic(Mesh.Face f)
             {
-                return f.Edges.Select((e, _) => e.DistanceToPoint(Goal)).Min();
+                return f.EnumerateEdges().Select((e, _) => e.DistanceToPoint(Goal)).Min();
             }
             private float calculategScore(float gScore, Mesh.Face a, Mesh.Face b)
             {
@@ -699,8 +699,8 @@ namespace RTS
         {
             pathfinding = new Pathfinding(new Vector2(0, 0), new Vector2(1, 1));
             cdt = pathfinding.CDT;
-            //            cdt.InsertConstraint(new List<Vector2>() { new Vector2(0.26f, 0.16f), new Vector2(0.365f, 0.145f), new Vector2(0.57f, 0.155f), new Vector2(0.765f, 0.215f), new Vector2(0.87f, 0.29f), new Vector2(0.875f, 0.4f), new Vector2(0.865f, 0.555f), new Vector2(0.855f, 0.62f), new Vector2(0.83f, 0.71f), new Vector2(0.83f, 0.71f), new Vector2(0.73f, 0.825f), new Vector2(0.635f, 0.85f), new Vector2(0.485f, 0.86f), new Vector2(0.4f, 0.86f), new Vector2(0.305f, 0.835f), new Vector2(0.24f, 0.815f), new Vector2(0.175f, 0.77f), new Vector2(0.15f, 0.725f), new Vector2(0.16f, 0.67f), new Vector2(0.21f, 0.65f), new Vector2(0.28f, 0.67f), new Vector2(0.33f, 0.705f), new Vector2(0.39f, 0.735f), new Vector2(0.455f, 0.75f), new Vector2(0.455f, 0.75f), new Vector2(0.54f, 0.74f), new Vector2(0.54f, 0.74f), new Vector2(0.6f, 0.72f), new Vector2(0.6f, 0.72f), new Vector2(0.705f, 0.615f), new Vector2(0.705f, 0.615f), new Vector2(0.69f, 0.535f), new Vector2(0.69f, 0.535f), new Vector2(0.65f, 0.455f), new Vector2(0.65f, 0.455f), new Vector2(0.59f, 0.42f), new Vector2(0.535f, 0.42f), new Vector2(0.535f, 0.42f), new Vector2(0.535f, 0.42f), new Vector2(0.425f, 0.51f), new Vector2(0.425f, 0.56f), new Vector2(0.425f, 0.56f), new Vector2(0.415f, 0.61f), new Vector2(0.345f, 0.58f), new Vector2(0.345f, 0.58f), new Vector2(0.27f, 0.51f), new Vector2(0.27f, 0.51f), new Vector2(0.215f, 0.415f), new Vector2(0.215f, 0.415f), new Vector2(0.215f, 0.415f), new Vector2(0.265f, 0.39f), new Vector2(0.265f, 0.39f), new Vector2(0.325f, 0.425f), new Vector2(0.465f, 0.375f), new Vector2(0.54f, 0.29f), new Vector2(0.54f, 0.29f), new Vector2(0.48f, 0.235f), new Vector2(0.48f, 0.235f), new Vector2(0.38f, 0.235f), new Vector2(0.38f, 0.235f), new Vector2(0.33f, 0.23f), new Vector2(0.33f, 0.23f), new Vector2(0.26f, 0.16f), }, 0);
-
+                        cdt.InsertConstraint(new List<Vector2>() { new Vector2(0.26f, 0.16f), new Vector2(0.365f, 0.145f), new Vector2(0.57f, 0.155f), new Vector2(0.765f, 0.215f), new Vector2(0.87f, 0.29f), new Vector2(0.875f, 0.4f), new Vector2(0.865f, 0.555f), new Vector2(0.855f, 0.62f), new Vector2(0.83f, 0.71f), new Vector2(0.83f, 0.71f), new Vector2(0.73f, 0.825f), new Vector2(0.635f, 0.85f), new Vector2(0.485f, 0.86f), new Vector2(0.4f, 0.86f), new Vector2(0.305f, 0.835f), new Vector2(0.24f, 0.815f), new Vector2(0.175f, 0.77f), new Vector2(0.15f, 0.725f), new Vector2(0.16f, 0.67f), new Vector2(0.21f, 0.65f), new Vector2(0.28f, 0.67f), new Vector2(0.33f, 0.705f), new Vector2(0.39f, 0.735f), new Vector2(0.455f, 0.75f), new Vector2(0.455f, 0.75f), new Vector2(0.54f, 0.74f), new Vector2(0.54f, 0.74f), new Vector2(0.6f, 0.72f), new Vector2(0.6f, 0.72f), new Vector2(0.705f, 0.615f), new Vector2(0.705f, 0.615f), new Vector2(0.69f, 0.535f), new Vector2(0.69f, 0.535f), new Vector2(0.65f, 0.455f), new Vector2(0.65f, 0.455f), new Vector2(0.59f, 0.42f), new Vector2(0.535f, 0.42f), new Vector2(0.535f, 0.42f), new Vector2(0.535f, 0.42f), new Vector2(0.425f, 0.51f), new Vector2(0.425f, 0.56f), new Vector2(0.425f, 0.56f), new Vector2(0.415f, 0.61f), new Vector2(0.345f, 0.58f), new Vector2(0.345f, 0.58f), new Vector2(0.27f, 0.51f), new Vector2(0.27f, 0.51f), new Vector2(0.215f, 0.415f), new Vector2(0.215f, 0.415f), new Vector2(0.215f, 0.415f), new Vector2(0.265f, 0.39f), new Vector2(0.265f, 0.39f), new Vector2(0.325f, 0.425f), new Vector2(0.465f, 0.375f), new Vector2(0.54f, 0.29f), new Vector2(0.54f, 0.29f), new Vector2(0.48f, 0.235f), new Vector2(0.48f, 0.235f), new Vector2(0.38f, 0.235f), new Vector2(0.38f, 0.235f), new Vector2(0.33f, 0.23f), new Vector2(0.33f, 0.23f), new Vector2(0.26f, 0.16f), }, 0);
+            /*
 
             const float size = 0.05f;
             int n = 5;
@@ -717,6 +717,7 @@ namespace RTS
                         new Vector2(x0,y0+size),
                         new Vector2(x0,y0) },1);
                 }
+            */
 
             mesh = cdt.Mesh;
             path = pathfinding.NewPath(new Vector2(0.16f, 0.56f), new Vector2(0.95f, 0.95f), radius);

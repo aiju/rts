@@ -175,6 +175,20 @@ namespace RTS
             NewFace(a, c, b);
             NewFace(a, d, c);
         }
+        private void addFaceToEdge(Face f, Edge e)
+        {
+            var (a, b) = e.Faces;
+            if (a == null) e.Faces = (f, b);
+            else if (b == null) e.Faces = (a, f);
+            else throw new ArgumentOutOfRangeException();
+        }
+        private void removeFaceFromEdge(Face f, Edge e)
+        {
+            var (a, b) = e.Faces;
+            if (a == f) e.Faces = (b, null);
+            else if (b == f) e.Faces = (a, null);
+            else throw new ArgumentOutOfRangeException();
+        }
         public Vertex NewVertex(Vector2 pos)
         {
             Vertex v = new Vertex(this, pos);
@@ -192,10 +206,13 @@ namespace RTS
         }
         public Face NewFace(Vertex a, Vertex b, Vertex c)
         {
-            NewEdge(a, b);
-            NewEdge(a, c);
-            NewEdge(b, c);
-            Face f = new Face(this, a, b, c);
+            var e0 = NewEdge(b, c);
+            var e1 = NewEdge(a, c);
+            var e2 = NewEdge(a, b);
+            Face f = new Face(this, (a, b, c), (e0,e1,e2));
+            addFaceToEdge(f, e0);
+            addFaceToEdge(f, e1);
+            addFaceToEdge(f, e2);
             faces.Add(f);
             return f;
         }
@@ -210,6 +227,10 @@ namespace RTS
         }
         public void RemoveFace(Face f)
         {
+            var (a, b, c) = f.Edges;
+            removeFaceFromEdge(f, a);
+            removeFaceFromEdge(f, b);
+            removeFaceFromEdge(f, c);
             faces.Remove(f);
         }
         public IEnumerable<Vertex> Vertices() { return vertices; }
@@ -224,8 +245,9 @@ namespace RTS
                 this.mesh = mesh;
                 this.Pos = pos;
             }
-            internal IEnumerable<Edge> Edges()
+            public IEnumerable<Edge> Edges()
             {
+                /* FIXME */
                 return mesh.Edges().Where(e => e.Contains(this));
             }
             public bool Same(Vertex w)
@@ -248,6 +270,7 @@ namespace RTS
             public Vertex Vertex1 { get { return Vertices.Item1; } }
             public Vertex Vertex2 { get { return Vertices.Item2; } }
             public (Vertex, Vertex) Vertices { get; }
+            public (Face, Face) Faces { get; internal set;  }
             public object Aux { get; set; }
             public float DistanceToPoint(Vector2 p)
             {
@@ -266,18 +289,18 @@ namespace RTS
             {
                 return Geometry.ProjectPointToLine(point, Vertex1.Pos, Vertex2.Pos);
             }
-            public IEnumerable<Face> AdjacentFaces()
+            public IEnumerable<Face> EnumerateFaces()
             {
-                /* FIXME */
-                var (a, b) = Vertices;
-                var fs = new List<Face>(2);
-                foreach(Face f in mesh.Faces())
-                {
-                    var (x, y, z) = f.Vertices;
-                    if ((a.Same(x) || a.Same(y) || a.Same(z)) && (b.Same(x) || b.Same(y) || b.Same(z)))
-                        fs.Add(f);
-                }
-                return fs;
+                var (a, b) = Faces;
+                if (a != null) yield return a;
+                if (b != null) yield return b;
+            }
+            public Face OtherFace(Face f)
+            {
+                var (a, b) = Faces;
+                if (a.Same(f)) return b;
+                if (b.Same(f)) return a;
+                throw new ArgumentOutOfRangeException();
             }
             public bool Same(Edge e)
             {
@@ -287,10 +310,11 @@ namespace RTS
         internal class Face
         {
             Mesh mesh;
-            public Face(Mesh mesh, Vertex a, Vertex b, Vertex c)
+            public Face(Mesh mesh, (Vertex, Vertex, Vertex) vertices, (Edge, Edge, Edge) edges)
             {
                 this.mesh = mesh;
-                Vertices = (a, b, c);
+                Vertices = vertices;
+                Edges = edges;
             }
             public bool Same(Face f)
             {
@@ -304,20 +328,11 @@ namespace RTS
             public Vertex Vertex2 { get { return Vertices.Item2; } }
             public Vertex Vertex3 { get { return Vertices.Item3;  } }
             public (Vertex, Vertex, Vertex) Vertices { get; }
-            public Mesh.Edge[] Edges
-            {
-                get
-                {
-                    /* FIXME */
-                    return mesh.Edges().Where(Contains).ToArray();
-                }
-            }
+            public (Edge, Edge, Edge) Edges { get; }
             public bool Contains(Edge e)
             {
-                /* FIXME */
-                var (a, b, c) = Vertices;
-                var (p, q) = e.Vertices;
-                return (p == a || p == b || p == c) && (q == a || q == b || q == c);
+                var (x, y, z) = Edges;
+                return x.Same(e) || y.Same(e) || z.Same(e);
             }
             public bool Contains(Vertex v)
             {
@@ -330,24 +345,40 @@ namespace RTS
             }
             public IEnumerable<(Face, Edge)> Neighbours()
             {
-                /* FIXME */
-                foreach(Edge e in Edges)
-                    foreach (Face f in e.AdjacentFaces())
-                        if (!Same(f))
-                            yield return (f, e);
+                var (a, b, c) = Edges;
+                yield return (a.OtherFace(this), a);
+                yield return (b.OtherFace(this), b);
+                yield return (c.OtherFace(this), c);
+            }
+            internal Vertex OtherVertex(Vertex a, Vertex b)
+            {
+                var (x, y, z) = Vertices;
+                if (!x.Same(a) && !x.Same(b)) return x;
+                else if (!y.Same(a) && !y.Same(b)) return y;
+                Debug.Assert(!z.Same(a) && !z.Same(b));
+                return z;
+            }
+            public (Edge, Edge) OtherEdges(Edge e)
+            {
+                var (a, b, c) = Edges;
+                if (a.Same(e)) return (b, c);
+                if (b.Same(e)) return (a, c);
+                if (c.Same(e)) return (a, b);
+                throw new ArgumentOutOfRangeException();
             }
             public Vector2 Centroid()
             {
                 var (a, b, c) = Vertices;
                 return (a.Pos + b.Pos + c.Pos) / 3;
             }
-            public Face FaceOppositeTo(Edge e)
+            public IEnumerable<Edge> EnumerateEdges()
             {
-                var f = e.AdjacentFaces().ToArray();
-                Debug.Assert(f.Count() == 2);
-                if (Same(f[0])) return f[1];
-                return f[0];
+                var (a, b, c) = Edges;
+                yield return a;
+                yield return b;
+                yield return c;
             }
+
         }
         internal class Updater
         {
@@ -367,7 +398,7 @@ namespace RTS
             public void DeleteEdge(Edge e)
             {
                 deleteEdges.Add(e);
-                foreach (Face f in e.AdjacentFaces())
+                foreach (Face f in e.EnumerateFaces())
                     deleteFaces.Add(f);
             }
             public void AddEdge(Vertex a, Vertex b, object aux)
@@ -409,6 +440,7 @@ namespace RTS
         public delegate void LocatedFace(Face f);
         public void LocatePoint(Vector2 point, LocatedVertex ifVertex, LocatedEdge ifEdge, LocatedFace ifFace)
         {
+            /* FIXME */
             foreach(Vertex v in Vertices())
                 if(Vector2.Distance(point, v.Pos) < Epsilon)
                 {
@@ -431,6 +463,7 @@ namespace RTS
         }
         public void Walk(Vertex v1, Vertex v2, Action<Edge, Vector2> crossedEdge, Action<Vertex> crossedVertex)
         {
+            /* FIXME */
             var crossings = new List<(float, Vertex, Edge, Vector2)>();
             foreach (Vertex v in Vertices())
                 if (Geometry.DistanceSegmentToPoint(v1.Pos, v2.Pos, v.Pos) < Epsilon)
@@ -468,18 +501,10 @@ namespace RTS
         private void edgeQuad(Edge e, out Vertex a, out Vertex b, out Vertex c, out Vertex d, out Face f0, out Face f1)
         {
             (a, b) = e.Vertices;
-            var faces = e.AdjacentFaces().ToArray();
-            Debug.Assert(faces.Count() == 2);
-            Vertex v2, v3, w2, w3;
-            (c, v2, v3) = faces[0].Vertices;
-            (d, w2, w3) = faces[1].Vertices;
-            if (!v2.Same(a) && !v2.Same(b)) c = v2;
-            else if (!v3.Same(a) && !v3.Same(b)) c = v3;
-            if (!w2.Same(a) && !w2.Same(b)) d = w2;
-            else if (!w3.Same(a) && !w3.Same(b)) d = w3;
-            Debug.Assert(c != a && c != b && d != a && d != b && c != d);
-            f0 = faces[0];
-            f1 = faces[1];
+            (f0, f1) = e.Faces;
+            c = f0.OtherVertex(a, b);
+            d = f1.OtherVertex(a, b);
+            Debug.Assert(!c.Same(a) && !c.Same(b) && !d.Same(a) && !d.Same(b) && !c.Same(d));
         }
         public void delaunayFlip(Edge e)
         {
@@ -498,7 +523,8 @@ namespace RTS
         }
         private Vertex faceSplit(Face f, Vector2 point, out Edge[] fp)
         {
-            fp = f.Edges;
+            fp = new Edge[3];
+            (fp[0], fp[1], fp[2]) = f.Edges;
             var (a, b, c) = f.Vertices;
             Vertex p = mesh.NewVertex(point);
             mesh.NewEdge(a, p);
@@ -513,8 +539,9 @@ namespace RTS
         private Vertex edgeSplit(Edge e, Vector2 point, out Edge[] fp)
         {
             edgeQuad(e, out var a, out var b, out var c, out var d, out var f0, out var f1);
-            fp = e.AdjacentFaces().SelectMany((f, i) => f.Edges).Where(ee => !e.Same(ee)).ToArray();
-            Debug.Assert(fp.Count() == 4);
+            fp = new Edge[4];
+            (fp[0], fp[1]) = e.Faces.Item1.OtherEdges(e);
+            (fp[2], fp[3]) = e.Faces.Item2.OtherEdges(e);
             Vertex p = mesh.NewVertex(point);
             var orig = e.Aux;
             mesh.RemoveEdge(e);
@@ -552,11 +579,10 @@ namespace RTS
             {
                 if (!IsConstrained(edge) && !isDelaunay(edge))
                 {
-                    var faces = edge.AdjacentFaces();
-                    Mesh.Face face = faces.Where(f => !f.Contains(point)).First();
-                    foreach (Mesh.Edge e in face.Edges)
-                        if (!e.Same(edge))
-                            stack.Push(e);
+                    var face = edge.EnumerateFaces().Where(f => !f.Contains(point)).First();
+                    var (a, b) = face.OtherEdges(edge);
+                    stack.Push(a);
+                    stack.Push(b);
                     delaunayFlip(edge);
                 }
             }
@@ -663,11 +689,10 @@ namespace RTS
                 return d;
             else if (IsConstrained(e))
                 return dd;
-            Face TT = T.FaceOppositeTo(e);
-            var l = TT.Edges.Where(ee => !ee.Same(e)).ToArray();
-            Debug.Assert(l.Count() == 2);
-            d = searchWidth(C, TT, l[0], d);
-            return searchWidth(C, TT, l[1], d);
+            Face TT = e.OtherFace(T);
+            var (f, g) = TT.OtherEdges(e);
+            d = searchWidth(C, TT, f, d);
+            return searchWidth(C, TT, g, d);
         }
         public float TriangleWidth(Face T, Edge a, Edge b)
         {
