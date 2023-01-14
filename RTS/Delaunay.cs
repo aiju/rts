@@ -1,4 +1,5 @@
-﻿using Microsoft.Xna.Framework;
+﻿using Microsoft.VisualBasic;
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
@@ -63,6 +64,12 @@ namespace RTS
             var s = b - a;
             var t = c - a;
             return s.Y * t.X >= s.X * t.Y;
+        }
+        public static bool IsCollinear(Vector2 a, Vector2 b, Vector2 c)
+        {
+            var s = b - a;
+            var t = c - a;
+            return MathF.Abs(s.Y * t.X - s.X * t.Y) < Epsilon;
         }
         public static Vector2 ProjectPointToLine(Vector2 p, Vector2 a, Vector2 b)
         {
@@ -129,6 +136,29 @@ namespace RTS
                 return true;
             }
         }
+        internal static bool IntersectLines(Vector2 a1, Vector2 a2, Vector2 b1, Vector2 b2, out Vector2 intersection)
+        {
+            /* TODO degeneracy */
+            var s1 = a2 - a1;
+            var s2 = b2 - b1;
+            var n1 = LeftNormal(s1);
+            if (Math.Abs(Vector2.Dot(n1, s2)) < Epsilon)
+            {
+                if (Math.Abs(SignedDistanceLineToPoint(a1, a2, b1)) >= Epsilon)
+                {
+                    intersection = new Vector2(0, 0);
+                    return false;
+                }
+                intersection = b1;
+                return true;
+            }
+            else
+            {
+                var x = Vector2.Dot(a1 - b1, n1) / Vector2.Dot(n1, s2);
+                intersection = b1 + s2 * x;
+                return true;
+            }
+        }
         public static bool FaceContainsPoint(Vector2 a, Vector2 b, Vector2 c, Vector2 p)
         {
             float x = SignedDistanceLineToPoint(a, b, p);
@@ -155,6 +185,17 @@ namespace RTS
         public static bool IsAcute(Vector2 c, Vector2 a, Vector2 b)
         {
             return Vector2.Dot(c - a, b - a) > 0;
+        }
+        public static bool IsTriangleFacing(Vector2 a, Vector2 b, Vector2 c, Vector2 p)
+        {
+            if (!IsClockwise(a, b, c))
+                (b, c) = (c, b);
+            return IsClockwise(a, b, p) && IsClockwise(a, p, c);
+        }
+        internal static bool SegmentContainsPoint(Vector2 a, Vector2 b, Vector2 p)
+        {
+            if (!IsCollinear(a, b, p)) return false;
+            return Vector2.Dot(a - p, b - p) <= Epsilon;
         }
     }
     internal class Mesh
@@ -233,6 +274,16 @@ namespace RTS
             removeFaceFromEdge(f, c);
             faces.Remove(f);
         }
+        public bool TryGetEdge(Vertex v1, Vertex v2, out Edge edge)
+        {
+            return edges.TryGetValue((v1, v2), out edge) || edges.TryGetValue((v2, v1), out edge);
+        }
+        public Edge GetEdge(Vertex v1, Vertex v2)
+        {
+            bool ok = TryGetEdge(v1, v2, out var edge);
+            if (!ok) throw new ArgumentOutOfRangeException();
+            return edge;
+        }
         public IEnumerable<Vertex> Vertices() { return vertices; }
         public IEnumerable<Edge> Edges() { return edges.Values; }
         public IEnumerable<Face> Faces() { return faces; }
@@ -249,6 +300,11 @@ namespace RTS
             {
                 /* FIXME */
                 return mesh.Edges().Where(e => e.Contains(this));
+            }
+            public IEnumerable<Face> Faces()
+            {
+                /* FIXME */
+                return mesh.Faces().Where(f => f.Contains(this));
             }
             public bool Same(Vertex w)
             {
@@ -305,6 +361,13 @@ namespace RTS
             public bool Same(Edge e)
             {
                 return this == e;
+            }
+            public Vertex OtherVertex(Vertex v)
+            {
+                var (a, b) = Vertices;
+                if (a.Same(v)) return b;
+                if (b.Same(v)) return a;
+                throw new ArgumentOutOfRangeException();
             }
         }
         internal class Face
@@ -364,6 +427,14 @@ namespace RTS
                 if (a.Same(e)) return (b, c);
                 if (b.Same(e)) return (a, c);
                 if (c.Same(e)) return (a, b);
+                throw new ArgumentOutOfRangeException();
+            }
+            internal (Vertex, Vertex) OtherVertices(Vertex v)
+            {
+                var (a, b, c) = Vertices;
+                if (a.Same(v)) return (b, c);
+                if (b.Same(v)) return (a, c);
+                if (c.Same(v)) return (a, b);
                 throw new ArgumentOutOfRangeException();
             }
             public Vector2 Centroid()
@@ -461,30 +532,60 @@ namespace RTS
                 }
             throw new ArgumentOutOfRangeException();
         }
-        public void Walk(Vertex v1, Vertex v2, Action<Edge, Vector2> crossedEdge, Action<Vertex> crossedVertex)
+        public enum CrossingType { Vertex, AlongEdge, AcrossEdge };
+        public List<(CrossingType,Vertex,Edge,Vector2)> Walk(Vertex v1, Vertex v2)
         {
-            /* FIXME */
-            var crossings = new List<(float, Vertex, Edge, Vector2)>();
-            foreach (Vertex v in Vertices())
-                if (Geometry.DistanceSegmentToPoint(v1.Pos, v2.Pos, v.Pos) < Epsilon)
-                    crossings.Add((Geometry.DistanceAlongSegment(v1.Pos, v2.Pos, v.Pos), v, null, v.Pos));
-            foreach (Edge e in Edges())
-                if (!(e.Contains(v1) && e.Contains(v2)) &&
-                    Geometry.IntersectSegments(v1.Pos, v2.Pos, e.Vertex1.Pos, e.Vertex2.Pos, out Vector2 point))
-                {
-                    if (Vector2.Distance(e.Vertex1.Pos, point) >= Epsilon && Vector2.Distance(e.Vertex2.Pos, point) >= Epsilon)
-                        crossings.Add((Geometry.DistanceAlongSegment(v1.Pos, v2.Pos, point), null, e, point));
-                }
-            crossings.Sort();
-            foreach (var (f, v, e, p) in crossings)
+            var res = new List<(CrossingType, Vertex, Edge, Vector2)>();
+            void processVertex(Vertex v)
             {
-                if (v != null) crossedVertex(v);
-                else crossedEdge(e, p);
+                res.Add((CrossingType.Vertex, v, null, v.Pos));
+                if (v.Same(v2))
+                    return;
+                foreach (var e in v.Edges())
+                    if (Geometry.SegmentContainsPoint(e.Vertex1.Pos, e.Vertex2.Pos, v2.Pos))
+                    {
+                        alongEdge(e, v);
+                        return;
+                    }
+                foreach(var f in v.Faces())
+                {
+                    var (b, c) = f.OtherVertices(v);
+                    if (Geometry.IsTriangleFacing(v.Pos, b.Pos, c.Pos, v2.Pos))
+                    {
+                        acrossEdge(GetEdge(b, c), f);
+                        return;
+                    }
+                }
+                throw new ArgumentOutOfRangeException();
             }
-        }
-        public bool TryGetEdge(Vertex v1, Vertex v2, out Edge edge)
-        {
-            return edges.TryGetValue((v1, v2), out edge) || edges.TryGetValue((v2, v1), out edge);
+            void alongEdge(Edge e, Vertex from)
+            {
+                res.Add((CrossingType.AlongEdge, null, e, from.Pos));
+                processVertex(e.OtherVertex(from));
+            }
+            void acrossEdge(Edge e, Face from)
+            {
+                bool ok = Geometry.IntersectLines(v1.Pos, v2.Pos, e.Vertex1.Pos, e.Vertex2.Pos, out Vector2 point);
+                if (!ok) throw new ArgumentOutOfRangeException();
+                res.Add((CrossingType.AcrossEdge, null, e, point));
+                processFace(e.OtherFace(from), e, point);
+            }
+            void processFace(Face f, Edge from, Vector2 point)
+            {
+                var (a, b) = from.Vertices;
+                var c = f.OtherVertex(a, b);
+                if (Geometry.IsCollinear(v1.Pos, v2.Pos, c.Pos))
+                    processVertex(c);
+                else if (Geometry.IsClockwise(v1.Pos, v2.Pos, c.Pos) == Geometry.IsClockwise(v1.Pos, v2.Pos, a.Pos))
+                    acrossEdge(GetEdge(b, c), f);
+                else
+                {
+                    Debug.Assert(Geometry.IsClockwise(v1.Pos, v2.Pos, c.Pos) == Geometry.IsClockwise(v1.Pos, v2.Pos, b.Pos));
+                    acrossEdge(GetEdge(a, c), f);
+                }
+            }
+            processVertex(v1);
+            return res;
         }
     }
     internal class CDT
@@ -593,44 +694,42 @@ namespace RTS
         }
         void insertSegment(Mesh.Vertex v1, Mesh.Vertex v2, int constraintId)
         {
-            mesh.Walk(v1, v2,
-                (edge, point) => {
-                    if (IsConstrained(edge))
-                        insertPointInEdge(edge, point);
-                },
-                _ => { });
+            /* FIXME: do we need to walk twice? */
+            foreach (var (type, _, edge, point) in mesh.Walk(v1, v2))
+                if (type == CrossingType.AcrossEdge && edge != null && IsConstrained(edge))
+                    insertPointInEdge(edge, point);
             var updater = new Mesh.Updater(mesh);
             var delenda = new List<Mesh.Edge>();
             Mesh.Vertex lastvertex = null;
-            Action<Mesh.Vertex, Mesh.Vertex> handleEdge = (v, vs) =>
+            foreach (var (type, vertex, edge, point) in mesh.Walk(v1, v2))
+                switch (type)
                 {
-                    if (mesh.TryGetEdge(v, vs, out Mesh.Edge edge))
-                    {
-                        if (edge.Aux == null)
-                            edge.Aux = new List<int>();
-                        ((List<int>)edge.Aux).Add(constraintId);
-                    }
-                    else
-                    {
-                        updater.AddEdge(v, vs, new List<int>() { constraintId });
-                        retriangulate(updater, v, vs, delenda);
-                    }
-                };
-            Action<Mesh.Vertex> crossedPoint = vertex =>
-                {
-                    if (lastvertex != null) handleEdge(lastvertex, vertex);
-                    delenda.Clear();
-                    lastvertex = vertex;
-                };
-            mesh.Walk(v1, v2,
-                (edge, point) =>
-                {
-                    if (!IsConstrained(edge))
-                    {
-                        delenda.Add(edge);
-                        updater.DeleteEdge(edge);
-                    }
-                }, crossedPoint);
+                    case CrossingType.Vertex:
+                        if (lastvertex != null)
+                        {
+                            if (mesh.TryGetEdge(lastvertex, vertex, out Mesh.Edge e))
+                            {
+                                if (e.Aux == null)
+                                    e.Aux = new List<int>();
+                                ((List<int>)e.Aux).Add(constraintId);
+                            }
+                            else
+                            {
+                                updater.AddEdge(lastvertex, vertex, new List<int>() { constraintId });
+                                retriangulate(updater, lastvertex, vertex, delenda);
+                            }
+                        }
+                        delenda.Clear();
+                        lastvertex = vertex;
+                        break;
+                    case CrossingType.AcrossEdge:
+                        if (!IsConstrained(edge))
+                        {
+                            delenda.Add(edge);
+                            updater.DeleteEdge(edge);
+                        }
+                        break;
+                }
             updater.Apply();
         }
         void retriangulate(Mesh.Updater updater, Mesh.Vertex a, Mesh.Vertex b, List<Mesh.Edge> delenda)
