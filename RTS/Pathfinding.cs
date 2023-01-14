@@ -6,17 +6,7 @@ using Microsoft.Xna.Framework.Input;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Drawing;
-using System.IO;
 using System.Linq;
-using System.Runtime.ExceptionServices;
-using System.Security;
-using System.Security.AccessControl;
-using System.Security.Cryptography;
-using System.Security.Cryptography.X509Certificates;
-using System.Text;
-using System.Threading.Tasks;
-using Color = Microsoft.Xna.Framework.Color;
 
 namespace RTS
 {
@@ -379,7 +369,6 @@ namespace RTS
                 Deque.RemoveLast();
             }
         }
-        public static int steps = 3;
         public void Run()
         {
             Route = new List<Vector2> { Start };
@@ -694,12 +683,12 @@ namespace RTS
         Pathfinding.Path path;
         bool lastDown;
         KeyboardState lastState;
-        public const float radius = 0.05f;
+        public const float radius = 0.025f;
         public PathfindingManipulator()
         {
             pathfinding = new Pathfinding(new Vector2(0, 0), new Vector2(1, 1));
             cdt = pathfinding.CDT;
-                        cdt.InsertConstraint(new List<Vector2>() { new Vector2(0.26f, 0.16f), new Vector2(0.365f, 0.145f), new Vector2(0.57f, 0.155f), new Vector2(0.765f, 0.215f), new Vector2(0.87f, 0.29f), new Vector2(0.875f, 0.4f), new Vector2(0.865f, 0.555f), new Vector2(0.855f, 0.62f), new Vector2(0.83f, 0.71f), new Vector2(0.83f, 0.71f), new Vector2(0.73f, 0.825f), new Vector2(0.635f, 0.85f), new Vector2(0.485f, 0.86f), new Vector2(0.4f, 0.86f), new Vector2(0.305f, 0.835f), new Vector2(0.24f, 0.815f), new Vector2(0.175f, 0.77f), new Vector2(0.15f, 0.725f), new Vector2(0.16f, 0.67f), new Vector2(0.21f, 0.65f), new Vector2(0.28f, 0.67f), new Vector2(0.33f, 0.705f), new Vector2(0.39f, 0.735f), new Vector2(0.455f, 0.75f), new Vector2(0.455f, 0.75f), new Vector2(0.54f, 0.74f), new Vector2(0.54f, 0.74f), new Vector2(0.6f, 0.72f), new Vector2(0.6f, 0.72f), new Vector2(0.705f, 0.615f), new Vector2(0.705f, 0.615f), new Vector2(0.69f, 0.535f), new Vector2(0.69f, 0.535f), new Vector2(0.65f, 0.455f), new Vector2(0.65f, 0.455f), new Vector2(0.59f, 0.42f), new Vector2(0.535f, 0.42f), new Vector2(0.535f, 0.42f), new Vector2(0.535f, 0.42f), new Vector2(0.425f, 0.51f), new Vector2(0.425f, 0.56f), new Vector2(0.425f, 0.56f), new Vector2(0.415f, 0.61f), new Vector2(0.345f, 0.58f), new Vector2(0.345f, 0.58f), new Vector2(0.27f, 0.51f), new Vector2(0.27f, 0.51f), new Vector2(0.215f, 0.415f), new Vector2(0.215f, 0.415f), new Vector2(0.215f, 0.415f), new Vector2(0.265f, 0.39f), new Vector2(0.265f, 0.39f), new Vector2(0.325f, 0.425f), new Vector2(0.465f, 0.375f), new Vector2(0.54f, 0.29f), new Vector2(0.54f, 0.29f), new Vector2(0.48f, 0.235f), new Vector2(0.48f, 0.235f), new Vector2(0.38f, 0.235f), new Vector2(0.38f, 0.235f), new Vector2(0.33f, 0.23f), new Vector2(0.33f, 0.23f), new Vector2(0.26f, 0.16f), }, 0);
+            //cdt.InsertConstraint(new List<Vector2>() { new Vector2(0.26f, 0.16f), new Vector2(0.365f, 0.145f), new Vector2(0.57f, 0.155f), new Vector2(0.765f, 0.215f), new Vector2(0.87f, 0.29f), new Vector2(0.875f, 0.4f), new Vector2(0.865f, 0.555f), new Vector2(0.855f, 0.62f), new Vector2(0.83f, 0.71f), new Vector2(0.83f, 0.71f), new Vector2(0.73f, 0.825f), new Vector2(0.635f, 0.85f), new Vector2(0.485f, 0.86f), new Vector2(0.4f, 0.86f), new Vector2(0.305f, 0.835f), new Vector2(0.24f, 0.815f), new Vector2(0.175f, 0.77f), new Vector2(0.15f, 0.725f), new Vector2(0.16f, 0.67f), new Vector2(0.21f, 0.65f), new Vector2(0.28f, 0.67f), new Vector2(0.33f, 0.705f), new Vector2(0.39f, 0.735f), new Vector2(0.455f, 0.75f), new Vector2(0.455f, 0.75f), new Vector2(0.54f, 0.74f), new Vector2(0.54f, 0.74f), new Vector2(0.6f, 0.72f), new Vector2(0.6f, 0.72f), new Vector2(0.705f, 0.615f), new Vector2(0.705f, 0.615f), new Vector2(0.69f, 0.535f), new Vector2(0.69f, 0.535f), new Vector2(0.65f, 0.455f), new Vector2(0.65f, 0.455f), new Vector2(0.59f, 0.42f), new Vector2(0.535f, 0.42f), new Vector2(0.535f, 0.42f), new Vector2(0.535f, 0.42f), new Vector2(0.425f, 0.51f), new Vector2(0.425f, 0.56f), new Vector2(0.425f, 0.56f), new Vector2(0.415f, 0.61f), new Vector2(0.345f, 0.58f), new Vector2(0.345f, 0.58f), new Vector2(0.27f, 0.51f), new Vector2(0.27f, 0.51f), new Vector2(0.215f, 0.415f), new Vector2(0.215f, 0.415f), new Vector2(0.215f, 0.415f), new Vector2(0.265f, 0.39f), new Vector2(0.265f, 0.39f), new Vector2(0.325f, 0.425f), new Vector2(0.465f, 0.375f), new Vector2(0.54f, 0.29f), new Vector2(0.54f, 0.29f), new Vector2(0.48f, 0.235f), new Vector2(0.48f, 0.235f), new Vector2(0.38f, 0.235f), new Vector2(0.38f, 0.235f), new Vector2(0.33f, 0.23f), new Vector2(0.33f, 0.23f), new Vector2(0.26f, 0.16f), }, 0);
             /*
 
             const float size = 0.05f;
@@ -719,6 +708,30 @@ namespace RTS
                 }
             */
 
+            var centres = new List<(Vector2, float)>();
+            Random random = new Random();
+            for(int i = 0; i < 50; i++)
+            {
+                float r = 0.025f + 0.025f * random.NextSingle();
+                Vector2 v;
+            loop:
+                v = new Vector2(random.NextSingle(), random.NextSingle());
+                if (v.X <= r || v.Y <= r || v.X >= 1.0f - r || v.Y >= 1.0f - r)
+                    goto loop;
+                foreach (var (w, r2) in centres)
+                    if (Vector2.Distance(w, v) <= r + r2)
+                        goto loop;
+                centres.Add((v, r));
+            }
+            foreach(var (v, r) in centres)
+            {
+                var polygon = new List<Vector2>();
+                int n = 3 + random.Next() % 8;
+                for (int i = 0; i <= n; i++)
+                    polygon.Add(new Vector2(v.X + r * MathF.Cos(2 * MathF.PI * i / n), v.Y + r * MathF.Sin(2 * MathF.PI * i / n)));
+                cdt.InsertConstraint(polygon, 1);
+            }
+
             mesh = cdt.Mesh;
             path = pathfinding.NewPath(new Vector2(0.16f, 0.56f), new Vector2(0.95f, 0.95f), radius);
         }
@@ -727,11 +740,12 @@ namespace RTS
             var m = Mouse.GetState();
             var k = Keyboard.GetState();
             cursor = new Vector2(((float)m.X - Offset) / Scale, ((float)m.Y - Offset) / Scale);
-            if(k.IsKeyUp(Keys.S) && lastState.IsKeyDown(Keys.S))
+            bool inRange = cursor.X > 0 && cursor.X < 1 && cursor.Y > 0 && cursor.Y < 1;
+            if (inRange && k.IsKeyDown(Keys.S))//k.IsKeyUp(Keys.S) && lastState.IsKeyDown(Keys.S))
             {
                 path = pathfinding.NewPath(cursor, path.Goal, radius);
             }
-            if (k.IsKeyUp(Keys.E) && lastState.IsKeyDown(Keys.E))
+            if (inRange && k.IsKeyDown(Keys.E)) //(k.IsKeyUp(Keys.E) && lastState.IsKeyDown(Keys.E))
             {
                 path = pathfinding.NewPath(path.Start, cursor, radius);
             }
@@ -745,15 +759,6 @@ namespace RTS
         static int ctr;
         public void Draw(GraphicsDevice device)
         {
-            if (ctr == 20)
-            {
-                Funnel.steps = Funnel.steps + 1;
-                ctr = 0;
-            }
-            else
-                ctr++;
-
-
             var dotRed = new Polygon(device, 6, 2, 0, Color.Red, true);
             var dotPink = new Polygon(device, 6, 2, 0, Color.Pink, true);
             var dotPurple = new Polygon(device, 6, 2, 0, Color.Purple, true);
@@ -764,11 +769,12 @@ namespace RTS
             }
             foreach (Mesh.Vertex v in mesh.Vertices())
             {
-                dotRed.DrawAt(device, toScreen(v.Pos) / 32);
-                Shape.RegularPolygon(device, 32, radius * Scale).Translate(toScreen(v.Pos)).Draw(device);
+                //dotRed.DrawAt(device, toScreen(v.Pos) / 32);
+                //Shape.RegularPolygon(device, 32, radius * Scale).Translate(toScreen(v.Pos)).Draw(device);
             }
             foreach (Mesh.Edge v in mesh.Edges())
             {
+                if (!cdt.IsConstrained(v)) continue;
                 var ec = cdt.IsConstrained(v) ? Color.Blue : Color.LightGreen;
                 new Polygon(device, new Vector2[] { toScreen(v.Vertex1.Pos), toScreen(v.Vertex2.Pos) }, ec).DrawAt(device, new Vector2(0, 0));
             }
