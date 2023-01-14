@@ -16,6 +16,7 @@ namespace RTS
         public Vector2 Start { get; }
         public Vector2 Goal { get; }
         public float Radius { get; }
+        public const float ArcTolerance = 0.1f;
         List<Mesh.Face> Faces;
         enum PointType { End, Left, Right };
         LinkedList<(Vector2, PointType)> Deque;
@@ -62,6 +63,25 @@ namespace RTS
                 return (from + n * r1, to - n * r2);
             }
         }
+        private void addArc(Vector2 centre, Vector2 from, Vector2 to)
+        {
+            Vector2 mid = (from + to) / 2;
+            if(Vector2.Distance(mid, centre) < Radius * (1 - ArcTolerance))
+            {
+                mid = centre + Geometry.Normalized(mid - centre) * Radius;
+                addArc(centre, from, mid);
+                Route.Add(mid);
+                addArc(centre, mid, to);
+            }
+        }
+        private void addSegment(Vector2 centre, Vector2 a, Vector2 b)
+        {
+            var l = Route.Last();
+            if(MathF.Abs(Vector2.Distance(l, centre) - Radius) < Geometry.Epsilon && MathF.Abs(Vector2.Distance(a, centre) - Radius) < Geometry.Epsilon)
+                addArc(centre, l, a);
+            Route.Add(a);
+            Route.Add(b);
+        }
         private void addLeft(Vector2 v)
         {
             for (; ; )
@@ -89,15 +109,13 @@ namespace RTS
                     }
                     if(l2 < l1)
                     {
-                        Route.Add(b0);
-                        Route.Add(b1);
+                        addSegment(apex, b0, b1);
                         Deque.AddFirst((v, PointType.Left));
                         apex = v;
                     }
                     else
                     {
-                        Route.Add(a0);
-                        Route.Add(a1);
+                        addSegment(apex, a0, a1);
                         apex = left1;
                     }
                 }
@@ -143,15 +161,13 @@ namespace RTS
                     }
                     if (l2 < l1)
                     {
-                        Route.Add(b0);
-                        Route.Add(b1);
+                        addSegment(apex, b0, b1);
                         Deque.AddLast((v, t));
                         apex = v;
                     }
                     else
                     {
-                        Route.Add(a0);
-                        Route.Add(a1);
+                        addSegment(apex, a0, a1);
                         apex = right1;
                     }
                 }
@@ -196,9 +212,8 @@ namespace RTS
             foreach(var (w,tt) in Deque)
             {
                 var (a, b) = adjustVector(v, t, w, tt);
+                addSegment(v, a, b);
                 (v, t) = (w, tt);
-                Route.Add(a);
-                Route.Add(b);
             }
         }
     }
@@ -421,7 +436,7 @@ namespace RTS
             foreach (Mesh.Vertex v in mesh.Vertices())
             {
                 //dotRed.DrawAt(device, toScreen(v.Pos) / 32);
-                //Shape.RegularPolygon(device, 32, radius * Scale).Translate(toScreen(v.Pos)).Draw(device);
+                Shape.RegularPolygon(device, 32, radius * Scale).Translate(toScreen(v.Pos)).Draw(device);
             }
             foreach (Mesh.Edge v in mesh.Edges())
             {
