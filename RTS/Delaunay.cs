@@ -569,60 +569,82 @@ namespace RTS
                 }
             throw new ArgumentOutOfRangeException();
         }
-        public enum CrossingType { Vertex, AlongEdge, AcrossEdge };
-        public List<(CrossingType,Vertex,Edge,Vector2)> Walk(Vertex v1, Vertex v2)
+        public enum CrossingType { Vertex, AlongEdge, AcrossEdge, Face };
+        public IEnumerable<(CrossingType,Vertex,Edge,Face,Vector2)> Walk(Vertex start, Vector2 goal)
         {
-            var res = new List<(CrossingType, Vertex, Edge, Vector2)>();
-            void processVertex(Vertex v)
+            Vertex vertex;
+            Edge edge;
+            Face face;
+            Vector2 point;
+            Vertex a, b, c;
+
+            vertex = start;
+        processVertex:
+            yield return (CrossingType.Vertex, vertex, null, null, vertex.Pos);
+            if (Geometry.ApproxEqual(vertex.Pos, goal))
+                yield break;
+            foreach (var e in vertex.Edges())
             {
-                res.Add((CrossingType.Vertex, v, null, v.Pos));
-                if (v.Same(v2))
-                    return;
-                foreach (var e in v.Edges())
-                    if (Geometry.SegmentContainsPoint(e.Vertex1.Pos, e.Vertex2.Pos, v2.Pos))
-                    {
-                        alongEdge(e, v);
-                        return;
-                    }
-                foreach(var f in v.Faces())
+                var w = e.OtherVertex(vertex);
+                if(Geometry.SegmentContainsPoint(vertex.Pos, goal, w.Pos))
                 {
-                    var (b, c) = f.OtherVertices(v);
-                    if (Geometry.IsTriangleFacing(v.Pos, b.Pos, c.Pos, v2.Pos))
-                    {
-                        acrossEdge(GetEdge(b, c), f);
-                        return;
-                    }
+                    yield return (CrossingType.AlongEdge, null, e, null, vertex.Pos);
+                    vertex = w;
+                    goto processVertex;
                 }
-                throw new ArgumentOutOfRangeException();
-            }
-            void alongEdge(Edge e, Vertex from)
-            {
-                res.Add((CrossingType.AlongEdge, null, e, from.Pos));
-                processVertex(e.OtherVertex(from));
-            }
-            void acrossEdge(Edge e, Face from)
-            {
-                bool ok = Geometry.IntersectLines(v1.Pos, v2.Pos, e.Vertex1.Pos, e.Vertex2.Pos, out Vector2 point);
-                if (!ok) throw new ArgumentOutOfRangeException();
-                res.Add((CrossingType.AcrossEdge, null, e, point));
-                processFace(e.OtherFace(from), e, point);
-            }
-            void processFace(Face f, Edge from, Vector2 point)
-            {
-                var (a, b) = from.Vertices;
-                var c = f.OtherVertex(a, b);
-                if (Geometry.IsCollinear(v1.Pos, v2.Pos, c.Pos))
-                    processVertex(c);
-                else if (Geometry.IsClockwise(v1.Pos, v2.Pos, c.Pos) == Geometry.IsClockwise(v1.Pos, v2.Pos, a.Pos))
-                    acrossEdge(GetEdge(b, c), f);
-                else
+                else if(Geometry.SegmentContainsPoint(vertex.Pos, w.Pos, goal))
                 {
-                    Debug.Assert(Geometry.IsClockwise(v1.Pos, v2.Pos, c.Pos) == Geometry.IsClockwise(v1.Pos, v2.Pos, b.Pos));
-                    acrossEdge(GetEdge(a, c), f);
+                    yield return (CrossingType.AlongEdge, null, e, null, goal);
+                    yield break;
                 }
             }
-            processVertex(v1);
-            return res;
+            foreach(var f in vertex.Faces())
+            {
+                (b, c) = f.OtherVertices(vertex);
+                if (Geometry.IsTriangleFacing(vertex.Pos, b.Pos, c.Pos, goal))
+                {
+                    edge = GetEdge(b, c);
+                    face = f;
+                    goto acrossEdge;
+                }
+            }
+            throw new ArgumentOutOfRangeException();
+        acrossEdge:
+            if(Geometry.SegmentContainsPoint(edge.Vertex1.Pos, edge.Vertex2.Pos, goal))
+            {
+                yield return (CrossingType.AcrossEdge, null, edge, null, goal);
+                yield break;
+            }
+            bool ok = Geometry.IntersectLines(start.Pos, goal, edge.Vertex1.Pos, edge.Vertex2.Pos, out point);
+            if (!ok) throw new ArgumentOutOfRangeException();
+            yield return (CrossingType.AcrossEdge, null, edge, null, point);
+            face = edge.OtherFace(face);
+            goto processFace;
+        processFace:
+            if (face.Contains(goal))
+            {
+                yield return (CrossingType.Face, null, null, face, goal);
+                yield break;
+            }
+            yield return (CrossingType.Face, null, null, face, point);
+            (a, b) = edge.Vertices;
+            c = face.OtherVertex(a, b);
+            if (Geometry.IsCollinear(start.Pos, goal, c.Pos))
+            {
+                vertex = c;
+                goto processVertex;
+            }
+            else if (Geometry.IsClockwise(start.Pos, goal, c.Pos) == Geometry.IsClockwise(start.Pos, goal, a.Pos))
+            {
+                edge = GetEdge(b, c);
+                goto acrossEdge;
+            }
+            else
+            {
+                Debug.Assert(Geometry.IsClockwise(start.Pos, goal, c.Pos) == Geometry.IsClockwise(start.Pos, goal, b.Pos));
+                edge = GetEdge(a, c);
+                goto acrossEdge;
+            }
         }
     }
     internal class CDT
@@ -732,13 +754,14 @@ namespace RTS
         void insertSegment(Mesh.Vertex v1, Mesh.Vertex v2, int constraintId)
         {
             /* FIXME: do we need to walk twice? */
-            foreach (var (type, _, edge, point) in mesh.Walk(v1, v2))
+            var crossings = new List<(CrossingType, Vertex, Edge, Face, Vector2)>(mesh.Walk(v1, v2.Pos));
+            foreach (var (type, _, edge, _, point) in crossings)
                 if (type == CrossingType.AcrossEdge && edge != null && IsConstrained(edge))
                     insertPointInEdge(edge, point);
             var updater = new Mesh.Updater(mesh);
             var delenda = new List<Mesh.Edge>();
             Mesh.Vertex lastvertex = null;
-            foreach (var (type, vertex, edge, point) in mesh.Walk(v1, v2))
+            foreach (var (type, vertex, edge, _, point) in mesh.Walk(v1, v2.Pos))
                 switch (type)
                 {
                     case CrossingType.Vertex:
