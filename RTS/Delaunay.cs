@@ -548,26 +548,26 @@ namespace RTS
         public delegate void LocatedFace(Face f);
         public void LocatePoint(Vector2 point, LocatedVertex ifVertex, LocatedEdge ifEdge, LocatedFace ifFace)
         {
-            /* FIXME */
-            foreach(Vertex v in Vertices())
-                if(Vector2.Distance(point, v.Pos) < Epsilon)
-                {
-                    ifVertex(v);
-                    return;
-                }
-            foreach (Edge e in Edges())
-                if (e.Contains(point))
-                {
-                    ifEdge(e);
-                    return;
-                }
-            foreach (Face f in Faces())
-                if(f.Contains(point))
-                {
-                    ifFace(f);
-                    return;
-                }
-            throw new ArgumentOutOfRangeException();
+            int n = (int)MathF.Ceiling(MathF.Pow(vertices.Count(), 1.0f / 3));
+            Random random = new Random();
+            Vertex minv = null;
+            float mindist = float.PositiveInfinity;
+            for(int i = 0; i < n; i++)
+            {
+                Vertex v = vertices[random.Next() % vertices.Count()];
+                float d = Vector2.Distance(v.Pos, point);
+                if(d < mindist)
+                    (minv, mindist) = (v, d);
+            }
+            Debug.Assert(minv != null);
+            var (type, vertex, edge, face, _) = Walk(minv, point).Last();
+            switch (type)
+            {
+                case CrossingType.Vertex: ifVertex(vertex); break;
+                case CrossingType.AlongEdge:
+                case CrossingType.AcrossEdge: ifEdge(edge); break;
+                case CrossingType.Face: ifFace(face); break;
+            }
         }
         public enum CrossingType { Vertex, AlongEdge, AcrossEdge, Face };
         public IEnumerable<(CrossingType,Vertex,Edge,Face,Vector2)> Walk(Vertex start, Vector2 goal)
@@ -603,9 +603,17 @@ namespace RTS
                 (b, c) = f.OtherVertices(vertex);
                 if (Geometry.IsTriangleFacing(vertex.Pos, b.Pos, c.Pos, goal))
                 {
-                    edge = GetEdge(b, c);
-                    face = f;
-                    goto acrossEdge;
+                    if (f.Contains(goal))
+                    {
+                        yield return (CrossingType.Face, null, null, f, goal);
+                        yield break;
+                    }
+                    else
+                    {
+                        edge = GetEdge(b, c);
+                        face = f;
+                        goto acrossEdge;
+                    }
                 }
             }
             throw new ArgumentOutOfRangeException();
@@ -619,6 +627,7 @@ namespace RTS
             if (!ok) throw new ArgumentOutOfRangeException();
             yield return (CrossingType.AcrossEdge, null, edge, null, point);
             face = edge.OtherFace(face);
+            Debug.Assert(face != null);
             goto processFace;
         processFace:
             if (face.Contains(goal))
