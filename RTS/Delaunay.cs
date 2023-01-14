@@ -202,13 +202,9 @@ namespace RTS
     {
         public const float Epsilon = Geometry.Epsilon;
         List<Vertex> vertices;
-        Dictionary<(Vertex, Vertex), Edge> edges;
-        List<Face> faces;
         public Mesh(Vector2 min, Vector2 max)
         {
             vertices = new List<Vertex>();
-            edges = new Dictionary<(Vertex, Vertex), Edge>();
-            faces = new List<Face>();
             var a = NewVertex(min);
             var b = NewVertex(new Vector2(max.X, min.Y));
             var c = NewVertex(max);
@@ -242,19 +238,25 @@ namespace RTS
             if (TryGetEdge(a, b, out e))
                 return e;
             e = new Edge(this, a, b);
-            edges.Add((a, b), e);
+            a.edges.Add(e);
+            b.edges.Add(e);
             return e;
         }
         public Face NewFace(Vertex a, Vertex b, Vertex c)
         {
+            Face f;
+            if (TryGetFace(a, b, c, out f))
+                return f;
             var e0 = NewEdge(b, c);
             var e1 = NewEdge(a, c);
             var e2 = NewEdge(a, b);
-            Face f = new Face(this, (a, b, c), (e0,e1,e2));
+            f = new Face(this, (a, b, c), (e0,e1,e2));
             addFaceToEdge(f, e0);
             addFaceToEdge(f, e1);
             addFaceToEdge(f, e2);
-            faces.Add(f);
+            a.faces.Add(f);
+            b.faces.Add(f);
+            c.faces.Add(f);
             return f;
         }
         public void RemoveVertex(Vertex v)
@@ -263,20 +265,41 @@ namespace RTS
         }
         public void RemoveEdge(Edge e)
         {
-            edges.Remove(e.Vertices);
-            edges.Remove((e.Vertex2, e.Vertex1));
+            e.Vertex1.edges.Remove(e);
+            e.Vertex2.edges.Remove(e);
         }
         public void RemoveFace(Face f)
         {
             var (a, b, c) = f.Edges;
+            var (A, B, C) = f.Vertices;
             removeFaceFromEdge(f, a);
             removeFaceFromEdge(f, b);
             removeFaceFromEdge(f, c);
-            faces.Remove(f);
+            A.faces.Remove(f);
+            B.faces.Remove(f);
+            C.faces.Remove(f);
+        }
+        public bool TryGetFace(Vertex v1, Vertex v2, Vertex v3, out Face face)
+        {
+            foreach (Face f in v1.Faces())
+                if (f.Contains(v2) && f.Contains(v3))
+                {
+                    face = f;
+                    return true;
+                }
+            face = null;
+            return false;
         }
         public bool TryGetEdge(Vertex v1, Vertex v2, out Edge edge)
         {
-            return edges.TryGetValue((v1, v2), out edge) || edges.TryGetValue((v2, v1), out edge);
+            foreach(Edge e in v1.Edges())
+                if (e.Contains(v2))
+                {
+                    edge = e;
+                    return true;
+                }
+            edge = null;
+            return false;
         }
         public Edge GetEdge(Vertex v1, Vertex v2)
         {
@@ -285,26 +308,40 @@ namespace RTS
             return edge;
         }
         public IEnumerable<Vertex> Vertices() { return vertices; }
-        public IEnumerable<Edge> Edges() { return edges.Values; }
-        public IEnumerable<Face> Faces() { return faces; }
+        public IEnumerable<Edge> Edges()
+        {
+            foreach (Vertex v in Vertices())
+                foreach (Edge e in v.Edges())
+                    if (e.Vertex1.Same(v))
+                        yield return e;
+        }
+        public IEnumerable<Face> Faces()
+        {
+            foreach (Vertex v in Vertices())
+                foreach (Face f in v.Faces())
+                    if (f.Vertex1.Same(v))
+                        yield return f;
+        }
         internal class Vertex
         {
             Mesh mesh;
             public Vector2 Pos { get; }
+            public List<Edge> edges { get; }
+            public List<Face> faces { get; }
             public Vertex(Mesh mesh, Vector2 pos)
             {
                 this.mesh = mesh;
                 this.Pos = pos;
+                edges = new List<Edge>();
+                faces = new List<Face>();
             }
             public IEnumerable<Edge> Edges()
             {
-                /* FIXME */
-                return mesh.Edges().Where(e => e.Contains(this));
+                return edges;
             }
             public IEnumerable<Face> Faces()
             {
-                /* FIXME */
-                return mesh.Faces().Where(f => f.Contains(this));
+                return faces;
             }
             public bool Same(Vertex w)
             {
