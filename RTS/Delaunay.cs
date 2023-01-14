@@ -186,6 +186,12 @@ namespace RTS
         {
             return Vector2.Dot(c - a, b - a) > 0;
         }
+        public static float Angle(Vector2 c, Vector2 a, Vector2 b)
+        {
+            var p = c - a;
+            var q = b - a;
+            return MathF.Acos(Vector2.Dot(p, q) / (p.Length() * q.Length()));
+        }
         public static bool IsTriangleFacing(Vector2 a, Vector2 b, Vector2 c, Vector2 p)
         {
             if (!IsClockwise(a, b, c))
