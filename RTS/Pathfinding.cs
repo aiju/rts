@@ -70,6 +70,7 @@ namespace RTS
             Vector2 mid = (from + to) / 2;
             if(Vector2.Distance(mid, centre) < Radius * (1 - ArcTolerance))
             {
+                Debug.Assert(!Geometry.ApproxEqual(mid, centre));
                 mid = centre + Geometry.Normalized(mid - centre) * Radius;
                 addArc(centre, from, mid);
                 Route.Add(mid);
@@ -436,7 +437,6 @@ namespace RTS
         {
             return p * Scale + new Vector2(Offset, Offset);
         }
-        static int ctr;
         public void Draw(GraphicsDevice device)
         {
             var dotRed = new Polygon(device, 6, 2, 0, Color.Red, true);

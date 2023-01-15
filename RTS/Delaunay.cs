@@ -89,6 +89,14 @@ namespace RTS
             if (x >= 1) return Vector2.Distance(b, p);
             return Math.Abs(Vector2.Dot(UnitLeftNormal(s), p - a));
         }
+        public static Vector2 ClosestPointOnSegment(Vector2 a, Vector2 b, Vector2 p)
+        {
+            var s = b - a;
+            float x = Vector2.Dot(p - a, s) / s.LengthSquared();
+            if (x <= 0) return a;
+            if (x >= 1) return b;
+            return ProjectPointToLine(p, a, b);
+        }
         public static bool IntersectSegments(Vector2 a1, Vector2 a2, Vector2 b1, Vector2 b2, out Vector2 intersection)
         {
             /* TODO degeneracy */
@@ -659,6 +667,30 @@ namespace RTS
                 Debug.Assert(Geometry.IsClockwise(start.Pos, goal, c.Pos) == Geometry.IsClockwise(start.Pos, goal, b.Pos));
                 edge = GetEdge(a, c);
                 goto acrossEdge;
+            }
+        }
+        public IEnumerable<Edge> FindCloseEdges(Vector2 point, float radius)
+        {
+            var queue = new Queue<Face>();
+            var processed = new HashSet<Edge>();
+            LocatePoint(point,
+                vertex => queue.Enqueue(vertex.Faces().First()),
+                edge => queue.Enqueue(edge.EnumerateFaces().First()),
+                face => queue.Enqueue(face));
+            while(queue.TryDequeue(out var face))
+            {
+                foreach (Edge edge in face.EnumerateEdges())
+                    if (!processed.Contains(edge))
+                    {
+                        processed.Add(edge);
+                        if (edge.DistanceToPoint(point) <= radius)
+                        {
+                            yield return edge;
+                            var e = edge.OtherFace(face);
+                            if (e != null)
+                                queue.Enqueue(e);
+                        }
+                    }
             }
         }
     }

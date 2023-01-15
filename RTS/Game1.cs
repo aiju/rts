@@ -185,6 +185,7 @@ namespace RTS
         private Timer _timer;
         private MeshManipulator _meshManipulator;
         private PathfindingManipulator _pathfindingManipulator;
+        private AgentManipulator _agentManipulator;
 
         public Game1()
         {
@@ -197,6 +198,8 @@ namespace RTS
             _timer = new Timer();
             _meshManipulator = new MeshManipulator();
             _pathfindingManipulator = new PathfindingManipulator();
+            _agentManipulator = new AgentManipulator();
+            _entities.Add(_agentManipulator);
         }
 
         protected override void Initialize()
@@ -232,9 +235,6 @@ namespace RTS
             foreach (IEntity entity in _entities)
                 entity.Update(gameTime);
 
-            _pathfindingManipulator.Update();
-            //_meshManipulator.Update();
-
             base.Update(gameTime);
         }
 
@@ -247,9 +247,6 @@ namespace RTS
 
             foreach (IEntity entity in _entities)
                 entity.Draw(GraphicsDevice);
-
-            _pathfindingManipulator.Draw(GraphicsDevice);
-            //_meshManipulator.Draw(GraphicsDevice);
 
             base.Draw(gameTime);
         }
