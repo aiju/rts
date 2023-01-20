@@ -216,15 +216,9 @@ namespace RTS
     {
         public const float Epsilon = Geometry.Epsilon;
         List<Vertex> vertices;
-        public Mesh(Vector2 min, Vector2 max)
+        public Mesh()
         {
             vertices = new List<Vertex>();
-            var a = NewVertex(min);
-            var b = NewVertex(new Vector2(max.X, min.Y));
-            var c = NewVertex(max);
-            var d = NewVertex(new Vector2(min.X, max.Y));
-            NewFace(a, c, b);
-            NewFace(a, d, c);
         }
         private void addFaceToEdge(Face f, Edge e)
         {
@@ -699,7 +693,13 @@ namespace RTS
         Mesh mesh;
         public CDT(Vector2 min, Vector2 max)
         {
-            mesh = new Mesh(min, max);
+            mesh = new Mesh();
+            var a = mesh.NewVertex(min);
+            var b = mesh.NewVertex(new Vector2(max.X, min.Y));
+            var c = mesh.NewVertex(max);
+            var d = mesh.NewVertex(new Vector2(min.X, max.Y));
+            mesh.NewFace(a, c, b);
+            mesh.NewFace(a, d, c);
             foreach (Mesh.Edge e in mesh.Edges())
                 if (MathF.Abs(Vector2.Distance(e.Vertex1.Pos, e.Vertex2.Pos) - Vector2.Distance(min, max)) >= Geometry.Epsilon)
                     e.Aux = new List<int>() { 0 };

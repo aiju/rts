@@ -199,7 +199,8 @@ namespace RTS
             _meshManipulator = new MeshManipulator();
             _pathfindingManipulator = new PathfindingManipulator();
             _agentManipulator = new AgentManipulator();
-            _entities.Add(_agentManipulator);
+            //_entities.Add(_agentManipulator);
+            _entities.Add(new MazeManipulator());
         }
 
         protected override void Initialize()
