@@ -54,7 +54,7 @@ namespace RTS
         }
         public void Draw(GraphicsDevice device)
         {
-            new Polygon(device, 4, 32, 45 + 90 * status, Color.Red).DrawAt(device, Position);
+            //new Polygon(device, 4, 32, 45 + 90 * status, Color.Red).DrawAt(device, Position);
             if(src.Have > 0)
                 src.Resource.Icon.DrawAt(device, Position);
         }
@@ -99,7 +99,7 @@ namespace RTS
         }
         public void Draw(GraphicsDevice device)
         {
-            new Polygon(device, 4, 32, 45 + 90 * status, Color.Red).DrawAt(device, Position);
+            //new Polygon(device, 4, 32, 45 + 90 * status, Color.Red).DrawAt(device, Position);
             if (sink.Have > 0)
                 sink.Resource.Icon.DrawAt(device, sink.Position.Position);
             if (src.Have > 0)
@@ -147,7 +147,7 @@ namespace RTS
         }
         public void Draw(GraphicsDevice device)
         {
-            new Polygon(device, 4, 32, 45, Color.Red).DrawAt(device, Position);
+            //new Polygon(device, 4, 32, 45, Color.Red).DrawAt(device, Position);
         }
         public void Update(GameTime gameTime)
         {
@@ -165,7 +165,7 @@ namespace RTS
 
         public void Draw(GraphicsDevice device)
         {
-            new Polygon(device, 6, 8, 0, Color.Red).DrawAt(device, Walker.Position);
+            //new Polygon(device, 6, 8, 0, Color.Red).DrawAt(device, Walker.Position);
             if(Carrying != null)
                 Carrying.Icon.DrawAt(device, Walker.Position);
         }
@@ -199,8 +199,10 @@ namespace RTS
             _meshManipulator = new MeshManipulator();
             _pathfindingManipulator = new PathfindingManipulator();
             _agentManipulator = new AgentManipulator();
-            //_entities.Add(_agentManipulator);
-            _entities.Add(new MazeManipulator());
+            //_entities.Add(_meshManipulator);
+            //_entities.Add(_pathfindingManipulator);
+            _entities.Add(_agentManipulator);
+            //_entities.Add(new MazeManipulator());
         }
 
         protected override void Initialize()

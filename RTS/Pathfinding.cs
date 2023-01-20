@@ -354,7 +354,7 @@ namespace RTS
             }
         }
     }
-    internal class PathfindingManipulator
+    internal class PathfindingManipulator : IEntity
     {
         public const float Scale = 400;
         public const float Offset = 50;
@@ -416,7 +416,7 @@ namespace RTS
             mesh = cdt.Mesh;
             path = pathfinding.NewPath(new Vector2(0.16f, 0.56f), new Vector2(0.95f, 0.95f), radius);
         }
-        public void Update()
+        public void Update(GameTime gameTime)
         {
             var m = Mouse.GetState();
             var k = Keyboard.GetState();
@@ -439,33 +439,24 @@ namespace RTS
         }
         public void Draw(GraphicsDevice device)
         {
-            var dotRed = new Polygon(device, 6, 2, 0, Color.Red, true);
-            var dotPink = new Polygon(device, 6, 2, 0, Color.Pink, true);
-            var dotPurple = new Polygon(device, 6, 2, 0, Color.Purple, true);
+            var ctx = new DrawContext(device);
             foreach (Mesh.Face f in mesh.Faces())
             {
                 var fc = false && path.Faces != null && path.Faces.Contains(f) ? Color.LightGreen : Color.Green;
-                new Polygon(device, new Vector2[] { toScreen(f.Vertex1.Pos), toScreen(f.Vertex3.Pos), toScreen(f.Vertex2.Pos) }, fc, true).DrawAt(device, new Vector2(0, 0));
-            }
-            foreach (Mesh.Vertex v in mesh.Vertices())
-            {
-                //dotRed.DrawAt(device, toScreen(v.Pos) / 32);
-                //Shape.RegularPolygon(device, 32, radius * Scale).Translate(toScreen(v.Pos)).Draw(device);
+                ctx.Polygon(new Vector2[] { toScreen(f.Vertex1.Pos), toScreen(f.Vertex3.Pos), toScreen(f.Vertex2.Pos) }, fc, true);
             }
             foreach (Mesh.Edge v in mesh.Edges())
             {
                 var ec = cdt.IsConstrained(v) ? Color.Blue : Color.Olive;
-                new Polygon(device, new Vector2[] { toScreen(v.Vertex1.Pos), toScreen(v.Vertex2.Pos) }, ec).DrawAt(device, new Vector2(0, 0));
+                ctx.Line(toScreen(v.Vertex1.Pos), toScreen(v.Vertex2.Pos), ec);
             }
-            
-            //path = pathfinding.NewPath(path.Start, path.Goal, radius);
             if (path.Route != null && path.Route.Count > 1)
             {
-                Shape.FromVertices(device, path.Route.ToArray()).Transform(toScreen).Color(Color.Red).Draw(device);
+                ctx.Path(path.Route.Select(toScreen).ToArray(), Color.Red);
             }
-            dotPink.DrawAt(device, toScreen(path.Start) / 32);
-            dotPink.DrawAt(device, toScreen(path.Goal) / 32);
-            dotPurple.DrawAt(device, toScreen(cursor) / 32);
+            ctx.RegularPolygon(toScreen(path.Start), 6, 2, 0, Color.Pink, true);
+            ctx.RegularPolygon(toScreen(path.Goal), 6, 2, 0, Color.Pink, true);
+            ctx.RegularPolygon(toScreen(cursor), 6, 2, 0, Color.Purple, true);
         }
     }
 }

@@ -207,24 +207,13 @@ namespace RTS
         }
         public void Draw(GraphicsDevice device)
         {
-            var dotRed = new Polygon(device, 6, 2, 0, Color.Red, true);
-            var dotPink = new Polygon(device, 6, 2, 0, Color.Pink, true);
-            var dotPurple = new Polygon(device, 6, 2, 0, Color.Purple, true);
-            foreach (Mesh.Face f in mesh.Faces())
-            {
-                var fc = Color.Green;
-                new Polygon(device, new Vector2[] { toScreen(f.Vertex1.Pos), toScreen(f.Vertex3.Pos), toScreen(f.Vertex2.Pos) }, fc, true).DrawAt(device, new Vector2(0, 0));
-            }
-            foreach (Mesh.Vertex v in mesh.Vertices())
-            {
-            //    dotRed.DrawAt(device, toScreen(v.Pos) / 32);
-            }
+            var ctx = new DrawContext(device);
             foreach (Mesh.Edge v in mesh.Edges())
             {
                 //if(walls.Contains(v))
-                    new Polygon(device, new Vector2[] { toScreen(v.Vertex1.Pos), toScreen(v.Vertex2.Pos) }, Color.Blue).DrawAt(device, new Vector2(0, 0));
+                ctx.Line(toScreen(v.Vertex1.Pos), toScreen(v.Vertex2.Pos), Color.Blue);
             }
-            dotPurple.DrawAt(device, toScreen(cursor) / 32);
+            ctx.RegularPolygon(toScreen(cursor), 6, 2, 0, Color.Purple, true);
         }
     }
 }
